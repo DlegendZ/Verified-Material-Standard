@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts"
+    "seed:demo": "tsx --env-file=.env.local scripts/seed-demo.ts",
+    "db:push": "tsx --env-file=.env.local scripts/db-push.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -25,6 +26,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.47.0",
     "next": "15.5.25",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -38,6 +40,7 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",

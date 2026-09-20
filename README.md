@@ -36,13 +36,21 @@ supabase db reset
 
 ### Opsi B — Project Supabase cloud
 
-Jalankan file migrasi secara manual dan berurutan lewat SQL Editor atau psql:
+Isi `SUPABASE_DB_URL` di `.env.local` dengan connection string Postgres dari dashboard Supabase
+(Project Settings → Database → Connection string). Pilih **Session pooler** bila host `db.<ref>.supabase.co`
+tidak bisa diakses dari jaringanmu — host langsung itu hanya punya alamat IPv6.
+
+Lalu jalankan migrasi dan seed referensi:
 
 ```bash
-psql "$SUPABASE_DB_URL" -f supabase/migrations/0001_init.sql
-psql "$SUPABASE_DB_URL" -f supabase/migrations/0002_rls.sql
-psql "$SUPABASE_DB_URL" -f supabase/seed.sql
+npm run db:push
 ```
+
+Perintah itu menjalankan `0001_init.sql`, `0002_rls.sql`, dan `seed.sql` secara berurutan. Ini
+perintah manual yang dijalankan dari mesin sendiri, bukan bagian dari proses deploy.
+
+Alternatif tanpa skrip: buka SQL Editor di dashboard Supabase, lalu tempel isi ketiga file itu
+satu per satu dengan urutan yang sama.
 
 ### Data demo
 
