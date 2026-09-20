@@ -190,6 +190,8 @@ function CertificateDocument({
           </View>
 
           <View style={styles.colRight}>
+            {/* Image di sini milik @react-pdf/renderer, bukan <img> DOM — tidak punya prop alt. */}
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image style={styles.qr} src={qrDataUrl} />
             <Text style={styles.qrCaption}>Pindai untuk memverifikasi keaslian sertifikat</Text>
           </View>
