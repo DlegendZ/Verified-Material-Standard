@@ -17,6 +17,7 @@ import {
   ODOR_OVERRIDE_LEVEL,
   REQUIRED_SAMPLE_POINTS,
   SCORING_VERSION,
+  SPEC_ACCURACY_SUB_KEY,
   WEIGHT_ACCURACY_SUB_KEY,
   WEIGHT_SUM_EPSILON,
   consistencyLevelFromSpread,
@@ -290,11 +291,24 @@ export function computeQuantity(
   }
 
   const subs = subsOf(category, "quantity_accuracy");
+
+  // Bobot dicari lewat sub_key, bukan urutan baris atau teks label.
+  const unknown = subs.find(
+    (s) => s.subKey !== WEIGHT_ACCURACY_SUB_KEY && s.subKey !== SPEC_ACCURACY_SUB_KEY,
+  );
+  if (unknown) {
+    throw new ScoringError(
+      "QUANTITY_SUB_KEY_UNKNOWN",
+      `sub_key "${unknown.subKey}" tidak dikenal pada quantity_accuracy; wajib "${WEIGHT_ACCURACY_SUB_KEY}" atau "${SPEC_ACCURACY_SUB_KEY}".`,
+    );
+  }
+
   const weightWeightPct = subs
     .filter((s) => s.subKey === WEIGHT_ACCURACY_SUB_KEY)
     .reduce((acc, s) => acc + s.weightPct, 0);
+  // Minyak Jelantah tidak punya spec_accuracy — hasilnya 0, bukan error.
   const specWeightPct = subs
-    .filter((s) => s.subKey !== WEIGHT_ACCURACY_SUB_KEY)
+    .filter((s) => s.subKey === SPEC_ACCURACY_SUB_KEY)
     .reduce((acc, s) => acc + s.weightPct, 0);
 
   const deviationPct =

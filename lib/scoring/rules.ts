@@ -32,11 +32,15 @@ export const ODOR_OVERRIDE_LEVEL = 3;
 export const REQUIRED_SAMPLE_POINTS = ["top", "middle", "bottom"] as const;
 
 /**
- * sub_key khusus yang menandai sub-kriteria "akurasi berat" di dalam kriteria
- * quantity_accuracy. Sub-kriteria quantity lain dianggap sebagai akurasi
- * spesifikasi. Konvensi ini dipakai seed Bab 8.
+ * KONVENSI sub_key WAJIB (SRD v1.1 Bab 5.1 & 7.6).
+ *
+ * Di dalam kriteria quantity_accuracy, engine membedakan sub-kriteria berat dan
+ * spesifikasi HANYA lewat sub_key ini — bukan lewat urutan baris atau isi label.
+ * Kategori Minyak Jelantah hanya punya baris weight_accuracy (bobot 100), dan
+ * ketiadaan spec_accuracy bukan error.
  */
 export const WEIGHT_ACCURACY_SUB_KEY = "weight_accuracy";
+export const SPEC_ACCURACY_SUB_KEY = "spec_accuracy";
 
 /** Skor tetap per level konsistensi (SRD Bab 7.5). */
 export const CONSISTENCY_SCORES: Record<ConsistencyLevel, number> = {

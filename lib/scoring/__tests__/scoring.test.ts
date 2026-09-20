@@ -408,3 +408,27 @@ describe("validasi konfigurasi kategori (jalur error lain)", () => {
     ).toThrow(/Berat timbang ulang/);
   });
 });
+
+describe("konvensi sub_key quantity_accuracy (SRD v1.1 Bab 5.1 & 7.6)", () => {
+  it("sub_key selain weight_accuracy/spec_accuracy melempar error", () => {
+    const wrongKey: CategoryConfig = {
+      ...TEXTILE,
+      criteria: TEXTILE.criteria.map((c) =>
+        c.subKey === "spec_accuracy" ? { ...c, subKey: "ukuran_potongan" } : c,
+      ),
+    };
+    expect(() => computeGrading(perfectInput({ category: wrongKey }))).toThrow(
+      /tidak dikenal pada quantity_accuracy/,
+    );
+  });
+
+  it("kategori tanpa spec_accuracy (UCO) tetap dihitung tanpa error", () => {
+    const uco = computeQuantity(UCO, {
+      claimedWeightKg: 100,
+      actualWeightKg: 99,
+      specMatchPct: 0,
+    });
+    expect(uco.specWeightPct).toBe(0);
+    expect(uco.score).toBe(100);
+  });
+});
