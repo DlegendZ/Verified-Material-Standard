@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/*
+  Arah visual VMS: lembar pemeriksaan, bukan kartu SaaS.
+  Struktur dibentuk oleh garis ukur dan blok data, bukan bayangan.
+  Aksen hijau tua = material & keberlanjutan (SRD Bab 10.1).
+  Kontras minimal WCAG AA di mode terang dan gelap.
+*/
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f5f7f3;
+  --surface: #ffffff;
+  --surface-sunken: #eef1ec;
+  --ink: #0f1613;
+  --ink-muted: #56605a;
+  --line: #d8ded6;
+  --line-strong: #b6bfb6;
+
+  --brand: #14543a;
+  --brand-hover: #0f4430;
+  --brand-ink: #ffffff;
+  --brand-soft: #e2ece6;
+
+  --grade-a: #14543a;
+  --grade-b: #1b5878;
+  --grade-c: #8a5810;
+  --grade-d: #8c2f2a;
+  --grade-ink: #ffffff;
+
+  --danger: #8c2f2a;
+  --danger-soft: #f6e6e4;
+  --warning: #8a5810;
+  --warning-soft: #f8eede;
+  --ok: #14543a;
+  --ok-soft: #e2ece6;
+
+  --focus: #1b7a52;
+}
+
+.dark {
+  --paper: #0b100d;
+  --surface: #121814;
+  --surface-sunken: #0e1411;
+  --ink: #e7ece8;
+  --ink-muted: #98a29b;
+  --line: #222c26;
+  --line-strong: #35433b;
+
+  --brand: #57c08b;
+  --brand-hover: #72d0a0;
+  --brand-ink: #04130c;
+  --brand-soft: #16241c;
+
+  --grade-a: #57c08b;
+  --grade-b: #63b3d6;
+  --grade-c: #d8a03a;
+  --grade-d: #e0807a;
+  --grade-ink: #04130c;
+
+  --danger: #e0807a;
+  --danger-soft: #2a1a18;
+  --warning: #d8a03a;
+  --warning-soft: #2a2114;
+  --ok: #57c08b;
+  --ok-soft: #16241c;
+
+  --focus: #7fd6aa;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-grade-a: var(--grade-a);
+  --color-grade-b: var(--grade-b);
+  --color-grade-c: var(--grade-c);
+  --color-grade-d: var(--grade-d);
+  --color-grade-ink: var(--grade-ink);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+
+  /* Fokus keyboard wajib terlihat di seluruh aplikasi (SRD Bab 11). */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Angka sejajar rapi di tabel skor — ini data terukur, bukan teks biasa. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+  Garis ukur: pembatas tipis dengan takik di kiri, dipakai sebagai kepala blok
+  data pada lembar penilaian & halaman verifikasi.
+*/
+.rule-measure {
+  border-top: 1px solid var(--line-strong);
+  position: relative;
+}
+
+.rule-measure::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 2.5rem;
+  height: 3px;
+  background-color: var(--brand);
 }
