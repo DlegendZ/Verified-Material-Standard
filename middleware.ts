@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { normalizeSupabaseUrl } from "@/lib/env";
 
 /**
  * Menyegarkan sesi Supabase di setiap request dan menjaga rute per peran.
@@ -22,12 +23,15 @@ const HOME_BY_ROLE: Record<string, string> = {
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   // Tanpa env, biarkan halaman yang menampilkan pesan setup — jangan crash.
-  if (!url || !anonKey) return response;
+  if (!rawUrl || !anonKey) return response;
 
-  const supabase = createServerClient(url, anonKey, {
+  // Normalisasi yang sama dengan lib/env.ts. Tanpa ini, URL berakhiran /rest/v1
+  // membuat getUser() di middleware selalu gagal sehingga pengguna yang sudah
+  // login tetap dilempar ke halaman masuk.
+  const supabase = createServerClient(normalizeSupabaseUrl(rawUrl), anonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

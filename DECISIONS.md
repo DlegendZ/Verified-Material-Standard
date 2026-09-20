@@ -116,6 +116,30 @@ hasil perhitungan server.
 publik memakai `createSupabasePublicClient()` supaya bisa di-cache (ISR 60 detik) dan isinya tidak
 pernah berbeda tergantung siapa yang membuka.
 
+## A16 — URL Supabase dinormalkan di satu tempat
+
+Nilai `NEXT_PUBLIC_SUPABASE_URL` yang tersalin dari dashboard sering berakhiran `/rest/v1`.
+Client Supabase menambahkan path itu sendiri, sehingga hasilnya `/rest/v1/rest/v1/...` dan ditolak
+dengan "Invalid path specified in request URL" — sementara endpoint auth tetap jalan, jadi gejalanya
+menyesatkan. `normalizeSupabaseUrl()` di `lib/env.ts` membuang garis miring dan sufiks
+`/rest|auth|storage|realtime/vN`, lalu dipakai seragam oleh server client, browser client,
+middleware, URL Storage, dan skrip seed.
+
+## A17 — PDF sertifikat hanya dirender di dalam Next, bukan di skrip seed
+
+`@react-pdf/renderer` gagal di-resolve saat dijalankan lewat `tsx`
+(`Package subpath './en-us' is not defined by "exports" in @react-pdf/hyphenate`), tapi berjalan
+normal di runtime Next. Karena itu `npm run seed:demo` tetap membuat QR (memakai `qrcode` langsung)
+dan melewati PDF dengan peringatan, sedangkan PDF sertifikat demo terbentuk saat Admin menerbitkan
+sertifikat dari aplikasi. Keduanya dipisah supaya kegagalan PDF tidak ikut menghilangkan QR.
+
+## A18 — Kolom token di `auth.users` diisi string kosong, bukan NULL
+
+Akun demo dibuat lewat SQL. GoTrue membaca `confirmation_token`, `recovery_token`,
+`email_change*`, `phone_change*`, dan `reauthentication_token` sebagai string Go; nilai NULL membuat
+login ditolak dengan pesan "Email atau kata sandi salah" walau password benar. `seed.sql` mengisi
+semuanya dengan `''` dan menormalkan baris lama.
+
 ---
 
 ## Blocker yang butuh DevOps (tidak dikerjakan agent, sesuai SRD Bab 12)

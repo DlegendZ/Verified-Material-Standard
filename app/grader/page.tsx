@@ -38,8 +38,10 @@ export default async function GraderQueuePage() {
     .order("assigned_at", { ascending: true })
     .returns<AssignmentCard[]>();
 
+  // Batch yang sudah selesai tidak perlu lagi muncul di antrian lapangan.
+  const CLOSED: BatchStatus[] = ["certified", "not_certified", "rejected_gate"];
   const open = (assignments ?? []).filter(
-    (item) => item.batches && item.batches.status !== "certified",
+    (item) => item.batches && !CLOSED.includes(item.batches.status),
   );
 
   return (

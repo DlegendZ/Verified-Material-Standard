@@ -9,6 +9,7 @@
  * Jalankan: npm run seed:demo
  * Aman diulang: seluruh batch demo dihapus lebih dulu lalu dibuat ulang.
  */
+import QRCode from "qrcode";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   computeGrading,
@@ -17,7 +18,8 @@ import {
   type GradingResult,
   type SamplePointInput,
 } from "../lib/scoring";
-import { generateCertificateCode, validUntilFrom } from "../lib/certificate";
+import { generateCertificateCode, validUntilFrom, verificationUrl } from "../lib/certificate";
+import { normalizeSupabaseUrl } from "../lib/env";
 import type { CategoryCriterionRow } from "../lib/types/db";
 
 const BATCH_PREFIX = "DEMO";
@@ -33,8 +35,13 @@ function env(name: string): string {
   return value;
 }
 
+/** Memakai normalisasi yang sama dengan aplikasi. */
+function envUrl(name: string): string {
+  return normalizeSupabaseUrl(env(name));
+}
+
 const supabase: SupabaseClient = createClient(
-  env("NEXT_PUBLIC_SUPABASE_URL"),
+  envUrl("NEXT_PUBLIC_SUPABASE_URL"),
   env("SUPABASE_SERVICE_ROLE_KEY"),
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
@@ -57,7 +64,18 @@ async function loadCategory(code: string): Promise<{ id: string; config: Categor
     .select("id, code, name")
     .eq("code", code)
     .single();
-  if (error || !category) throw new Error(`Kategori ${code} belum ada. Jalankan seed.sql dulu.`);
+  if (error || !category) {
+    throw new Error(
+      `Kategori ${code} tidak terbaca lewat API.
+` +
+        `Pesan Supabase: ${error?.message ?? "tidak ada baris"}
+` +
+        "Cek: (1) seed.sql sudah dijalankan, (2) NEXT_PUBLIC_SUPABASE_URL dan " +
+        "SUPABASE_DB_URL menunjuk project yang sama, (3) skema baru dibuat lewat SQL " +
+        "langsung sehingga cache PostgREST perlu di-reload (jalankan ulang perintah ini " +
+        "beberapa detik kemudian).",
+    );
+  }
 
   const { data: rows } = await supabase
     .from("category_criteria")
@@ -290,44 +308,71 @@ async function uploadCertificateAssets(
   issuedAt: Date,
   validUntil: Date,
 ): Promise<{ qrPath: string | null; pdfPath: string | null }> {
+  const storage = supabase.storage.from("certificates");
+  let qrPath: string | null = null;
+  let pdfPath: string | null = null;
+
+  // QR dan PDF dibuat terpisah supaya kegagalan salah satunya tidak ikut
+  // menghilangkan yang lain. Renderer PDF bergantung pada resolusi paket yang
+  // tidak selalu jalan di luar bundler Next; QR tidak punya masalah itu, jadi
+  // qrcode dipakai langsung tanpa melewati modul yang mengimpor react-pdf.
+  try {
+    const qr = await QRCode.toBuffer(verificationUrl(certificateCode), {
+      type: "png",
+      width: 600,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark: "#0F1613", light: "#FFFFFF" },
+    });
+    const path = `${certificateCode}/qr.png`;
+    const { error } = await storage.upload(path, qr, {
+      contentType: "image/png",
+      upsert: true,
+    });
+    if (error) throw new Error(error.message);
+    qrPath = path;
+  } catch (error) {
+    console.warn(`  ! QR ${certificateCode} gagal dibuat: ${(error as Error).message}`);
+  }
+
   try {
     const assets = await import("../lib/certificate-assets");
-    const [qr, pdf] = await Promise.all([
-      assets.renderQrPng(certificateCode),
-      assets.renderCertificatePdf({
-        certificateCode,
-        grade: result.grade,
-        finalScore: result.finalScore,
-        factoryName: spec.factoryName,
-        factoryCity: "Bandung",
-        categoryName: "Tekstil",
-        batchCode: spec.code,
-        lotNumber: spec.lotNumber,
-        claimedWeightKg: spec.claimedWeightKg,
-        productionDate: spec.productionDate,
-        sampledAt,
-        issuedAt: issuedAt.toISOString(),
-        validUntil: validUntil.toISOString(),
-        criteria: result.breakdown.final.map((row) => ({
-          label: row.label,
-          score: row.score,
-          weightPct: row.weightPct,
-        })),
-      }),
-    ]);
-
-    const storage = supabase.storage.from("certificates");
-    const qrPath = `${certificateCode}/qr.png`;
-    const pdfPath = `${certificateCode}/sertifikat.pdf`;
-    await storage.upload(qrPath, qr, { contentType: "image/png", upsert: true });
-    await storage.upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
-    return { qrPath, pdfPath };
+    const pdf = await assets.renderCertificatePdf({
+      certificateCode,
+      grade: result.grade,
+      finalScore: result.finalScore,
+      factoryName: spec.factoryName,
+      factoryCity: "Bandung",
+      categoryName: "Tekstil",
+      batchCode: spec.code,
+      lotNumber: spec.lotNumber,
+      claimedWeightKg: spec.claimedWeightKg,
+      productionDate: spec.productionDate,
+      sampledAt,
+      issuedAt: issuedAt.toISOString(),
+      validUntil: validUntil.toISOString(),
+      criteria: result.breakdown.final.map((row) => ({
+        label: row.label,
+        score: row.score,
+        weightPct: row.weightPct,
+      })),
+    });
+    const path = `${certificateCode}/sertifikat.pdf`;
+    const { error } = await storage.upload(path, pdf, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+    if (error) throw new Error(error.message);
+    pdfPath = path;
   } catch (error) {
     console.warn(
-      `  ! gagal membuat aset sertifikat ${certificateCode}: ${(error as Error).message}`,
+      `  ! PDF ${certificateCode} gagal dibuat di luar Next: ${(error as Error).message}
+` +
+        "    Sertifikat tetap terbit; PDF-nya dibuat saat Admin menerbitkan dari aplikasi.",
     );
-    return { qrPath: null, pdfPath: null };
   }
+
+  return { qrPath, pdfPath };
 }
 
 async function removeExistingDemoBatches() {
@@ -335,9 +380,17 @@ async function removeExistingDemoBatches() {
   const ids = (data ?? []).map((row) => row.id as string);
   if (ids.length === 0) return;
 
-  // grading_results append-only lewat trigger, jadi batch-nya yang dihapus
-  // (cascade ikut menghapus baris hasil).
-  await supabase.from("batches").delete().in("id", ids);
+  // Menghapus batch ikut menghapus hasil grading lewat cascade. Trigger
+  // append-only hanya memblokir UPDATE (lihat migrasi 0003), jadi ini sah.
+  const { error } = await supabase.from("batches").delete().in("id", ids);
+  if (error) {
+    throw new Error(
+      `Gagal menghapus batch demo lama: ${error.message}
+` +
+        "Pastikan migrasi 0003_grading_results_delete.sql sudah dijalankan: " +
+        "npm run db:push -- supabase/migrations/0003_grading_results_delete.sql",
+    );
+  }
   console.log(`Menghapus ${ids.length} batch demo lama.`);
 }
 

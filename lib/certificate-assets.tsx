@@ -1,4 +1,3 @@
-import "server-only";
 import QRCode from "qrcode";
 import {
   Document,
@@ -18,6 +17,10 @@ import type { GradeDb } from "./types/db";
  *
  * Sertifikat ini akan difoto dan dikirim lewat WhatsApp, jadi desainnya
  * kontras tinggi, tanpa gradien atau bayangan (SRD Bab 9.4).
+ *
+ * Modul ini sengaja TIDAK memakai penanda "server-only": selain dipakai Server
+ * Action, ia juga dipanggil skrip seed yang berjalan di Node biasa. Pemanggilnya
+ * di aplikasi selalu Server Action yang sudah memvalidasi peran lebih dulu.
  */
 
 export interface CertificatePdfData {

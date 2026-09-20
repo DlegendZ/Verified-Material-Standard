@@ -15,9 +15,16 @@
 -- -----------------------------------------------------------------------------
 -- Akun demo
 -- -----------------------------------------------------------------------------
+-- Catatan penting: kolom token di auth.users (confirmation_token, recovery_token,
+-- email_change*, phone_change*, reauthentication_token) TIDAK boleh NULL.
+-- GoTrue membacanya sebagai string Go; nilai NULL membuat proses login gagal
+-- dengan "Email atau kata sandi salah" walau password-nya benar. Karena itu
+-- semuanya diisi string kosong, dan baris lama dinormalkan di bawah.
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, recovery_token, email_change_token_new, email_change,
+  email_change_token_current, phone_change, phone_change_token, reauthentication_token
 )
 values
   (
@@ -26,7 +33,7 @@ values
     'authenticated', 'authenticated', 'admin@vms.demo',
     crypt('vmsdemo123', gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Admin VMS"}', now(), now()
+    '{"full_name":"Admin VMS"}', now(), now(), '', '', '', '', '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -34,7 +41,7 @@ values
     'authenticated', 'authenticated', 'grader@vms.demo',
     crypt('vmsdemo123', gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Rangga Grader"}', now(), now()
+    '{"full_name":"Rangga Grader"}', now(), now(), '', '', '', '', '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -42,7 +49,7 @@ values
     'authenticated', 'authenticated', 'pabrik@vms.demo',
     crypt('vmsdemo123', gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Sentosa Textile"}', now(), now()
+    '{"full_name":"Sentosa Textile"}', now(), now(), '', '', '', '', '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -50,9 +57,21 @@ values
     'authenticated', 'authenticated', 'pabrik2@vms.demo',
     crypt('vmsdemo123', gen_salt('bf')), now(),
     '{"provider":"email","providers":["email"]}',
-    '{"full_name":"Karya Logam Jaya"}', now(), now()
+    '{"full_name":"Karya Logam Jaya"}', now(), now(), '', '', '', '', '', '', '', ''
   )
 on conflict (id) do nothing;
+
+-- Normalisasi baris yang terlanjur dibuat dengan kolom token NULL.
+update auth.users
+set confirmation_token = coalesce(confirmation_token, ''),
+    recovery_token = coalesce(recovery_token, ''),
+    email_change_token_new = coalesce(email_change_token_new, ''),
+    email_change = coalesce(email_change, ''),
+    email_change_token_current = coalesce(email_change_token_current, ''),
+    phone_change = coalesce(phone_change, ''),
+    phone_change_token = coalesce(phone_change_token, ''),
+    reauthentication_token = coalesce(reauthentication_token, '')
+where email in ('admin@vms.demo', 'grader@vms.demo', 'pabrik@vms.demo', 'pabrik2@vms.demo');
 
 -- Identity email diperlukan GoTrue agar login email+password berfungsi.
 insert into auth.identities (

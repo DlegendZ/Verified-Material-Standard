@@ -5,6 +5,8 @@
  * halaman verifikasi yang dibuka tanpa login. batch-documents privat — dokumen
  * asal-usul hanya boleh dilihat grader & admin lewat signed URL (keputusan A6).
  */
+import { normalizeSupabaseUrl } from "./env";
+
 export const BUCKETS = {
   photos: "batch-photos",
   documents: "batch-documents",
@@ -13,9 +15,14 @@ export const BUCKETS = {
 
 export type BucketName = (typeof BUCKETS)[keyof typeof BUCKETS];
 
-/** URL publik objek pada bucket publik. */
+/**
+ * URL publik objek pada bucket publik.
+ *
+ * URL project dinormalkan lebih dulu; nilai env yang berakhiran /rest/v1
+ * menghasilkan alamat gambar yang salah dan galerinya tampil kosong.
+ */
 export function publicObjectUrl(bucket: BucketName, path: string): string {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const base = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
   return `${base}/storage/v1/object/public/${bucket}/${path}`;
 }
 

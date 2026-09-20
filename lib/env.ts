@@ -15,9 +15,30 @@ function required(name: string, value: string | undefined): string {
   return value;
 }
 
+/**
+ * Membersihkan URL project Supabase.
+ *
+ * Dashboard Supabase menampilkan beberapa URL sekaligus, dan yang paling sering
+ * tersalin adalah "Data API URL" yang berakhiran /rest/v1. Client Supabase
+ * menambahkan sendiri path itu, sehingga nilai mentahnya menghasilkan
+ * /rest/v1/rest/v1/... dan ditolak dengan "Invalid path specified in request URL"
+ * — padahal endpoint auth tetap jalan, jadi gejalanya membingungkan.
+ *
+ * Yang dibutuhkan hanya origin-nya: https://<ref>.supabase.co
+ */
+export function normalizeSupabaseUrl(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/(rest|auth|storage|realtime)\/v\d+$/i, "")
+    .replace(/\/+$/, "");
+}
+
 /** Aman dipakai di client — dibatasi Row Level Security. */
 export function supabaseUrl(): string {
-  return required("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
+  return normalizeSupabaseUrl(
+    required("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL),
+  );
 }
 
 export function supabaseAnonKey(): string {
