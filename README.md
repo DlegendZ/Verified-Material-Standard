@@ -76,10 +76,19 @@ Buka http://localhost:3000.
 ```bash
 npm test               # unit test (Vitest)
 npm run test:coverage  # coverage scoring engine
-npm run test:e2e       # e2e happy path (Playwright)
 npm run typecheck      # tsc --noEmit
 npm run lint           # ESLint
 ```
+
+E2E memakai akun demo dan data dari seed, jadi jalankan seed dulu:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Satu test verifikasi publik butuh kode sertifikat hasil seed:
+`E2E_CERTIFICATE_CODE=VMS-... npm run test:e2e`. Tanpa variabel itu test tersebut dilewati.
 
 Scoring engine (`lib/scoring/`) wajib hijau 100% sebelum perubahan apa pun di-merge —
 rumus di situ adalah IP inti VMS.

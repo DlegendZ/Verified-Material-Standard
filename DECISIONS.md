@@ -78,7 +78,8 @@ semua role.
 
 Model data SRD Bab 5.1 tidak menyediakan kolom penanda mana sub-kriteria berat dan mana spesifikasi,
 padahal bobot keduanya berbeda per kategori (60/40, 70/30, 100/0). Dipakai konvensi `sub_key`:
-`weight_accuracy` = akurasi berat, sub_key lain di kriteria `quantity_accuracy` = akurasi spesifikasi.
+`weight_accuracy` = akurasi berat, `spec_accuracy` = akurasi spesifikasi. sub_key lain di kriteria
+`quantity_accuracy` ditolak engine. Keputusan ini sudah diserap ke SRD v1.1 Bab 5.1 & 7.6.
 
 ## A10 — `@types/node` dinaikkan ke `^22`
 
@@ -89,6 +90,31 @@ Vitest 5 menolak `@types/node@^20` (peer conflict). Versi Node yang dipakai juga
 Policy `WITH CHECK` yang membaca ulang tabel yang sedang di-RLS berisiko rekursi. Kunci kolom
 `verification_status` dipindah ke trigger `factories_guard_verification` yang menolak perubahan
 kolom itu bila pelakunya bukan Admin.
+
+## A12 — Skrip seed demo dijalankan dengan `tsx`
+
+Skrip `scripts/seed-demo.ts` mengimpor scoring engine langsung (keputusan A4), jadi butuh runner
+TypeScript yang memahami path alias. `tsx` dipilih karena tidak butuh langkah build terpisah.
+Variabel lingkungan dibaca lewat `node --env-file=.env.local` bawaan Node 22, bukan paket dotenv.
+
+## A13 — Foto demo berupa SVG blok warna berlabel
+
+SRD Bab 13.1 membolehkan placeholder asal tidak terlihat seperti gambar rusak. Membuat file JPG
+butuh dependensi pengolah gambar; SVG blok warna dengan label kategori, kode batch, dan titik
+sampel memberi hasil yang jelas tanpa menambah dependensi.
+
+## A14 — Pratinjau grader memakai scoring engine yang sama, dijalankan di browser
+
+SRD Bab 6.3 meminta pratinjau hasil sebelum submit. Karena engine murni tanpa I/O, modulnya aman
+diimpor komponen client. Alternatifnya adalah memanggil server setiap kali angka berubah (lambat di
+lapangan) atau menulis perkiraan terpisah (dua sumber kebenaran). Angka final yang disimpan tetap
+hasil perhitungan server.
+
+## A15 — Halaman verifikasi publik memakai client anon tanpa cookie
+
+`createSupabaseServerClient()` membaca cookie sehingga membuat rute menjadi dinamis penuh. Halaman
+publik memakai `createSupabasePublicClient()` supaya bisa di-cache (ISR 60 detik) dan isinya tidak
+pernah berbeda tergantung siapa yang membuka.
 
 ---
 
