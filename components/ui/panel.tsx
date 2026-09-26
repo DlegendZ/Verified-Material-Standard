@@ -1,13 +1,15 @@
 import { cn } from "@/lib/cn";
 
-/**
- * Panel = satu blok pada lembar pemeriksaan. Sengaja tanpa bayangan dan tanpa
- * sudut membulat besar: yang memisahkan blok adalah garis, bukan kedalaman.
- */
-export function Panel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Panel({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <section
-      className={cn("border border-line bg-surface", className)}
+      className={cn(
+        "overflow-hidden rounded-2xl border border-line bg-surface",
+        className,
+      )}
       {...props}
     />
   );
@@ -34,7 +36,9 @@ export function PanelHeader({
       <div className="min-w-0">
         <h2 className="text-base font-semibold text-ink">{title}</h2>
         {description ? (
-          <p className="mt-0.5 max-w-prose text-sm text-ink-muted">{description}</p>
+          <p className="mt-0.5 max-w-prose text-sm text-ink-muted">
+            {description}
+          </p>
         ) : null}
       </div>
       {action}
@@ -42,7 +46,10 @@ export function PanelHeader({
   );
 }
 
-export function PanelBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function PanelBody({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("px-4 py-4 sm:px-5", className)} {...props} />;
 }
 
@@ -59,13 +66,21 @@ export function DataRow({
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-line py-2 last:border-b-0">
       <dt className="text-sm text-ink-muted">{label}</dt>
-      <dd className={cn("text-right text-sm font-medium text-ink", mono && "font-mono tabular")}>
+      <dd
+        className={cn(
+          "text-right text-sm font-medium text-ink",
+          mono && "font-mono tabular",
+        )}
+      >
         {value}
       </dd>
     </div>
   );
 }
 
-export function DataList({ className, ...props }: React.HTMLAttributes<HTMLDListElement>) {
+export function DataList({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDListElement>) {
   return <dl className={cn("divide-y-0", className)} {...props} />;
 }

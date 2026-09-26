@@ -34,10 +34,10 @@ export function VerifyCodeForm({ autoFocus = false }: { autoFocus?: boolean }) {
           placeholder="VMS-2609-K7M2QX4A"
           autoCapitalize="characters"
           spellCheck={false}
-          className="h-12 w-full rounded-[3px] border border-line-strong bg-surface px-3 font-mono text-base tracking-wide text-ink placeholder:text-ink-muted/60"
+          className="h-12 w-full rounded-xl border border-line-strong bg-paper/70 px-4 font-mono text-base tracking-wide text-ink placeholder:text-ink-muted/60"
         />
       </div>
-      <Button type="submit" size="lg">
+      <Button type="submit" size="lg" className="rounded-xl">
         Cek sertifikat
       </Button>
     </form>
