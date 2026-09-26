@@ -12,6 +12,23 @@ const initialState: AuthFormState = {};
 export default function SignUpPage() {
   const [state, formAction, pending] = useActionState(signUpAction, initialState);
 
+  if (state.confirmationRequired) {
+    return (
+      <Panel>
+        <PanelBody>
+          <h1 className="text-2xl font-semibold text-ink">Periksa emailmu</h1>
+          <p className="mt-3 text-sm leading-6 text-ink-muted">
+            Jika pendaftaran diterima, tautan konfirmasi dikirim ke emailmu.
+            Buka tautan itu sebelum masuk. Periksa folder spam bila belum terlihat.
+          </p>
+          <Link href="/sign-in" className="mt-6 inline-block font-semibold text-brand underline underline-offset-4">
+            Ke halaman masuk
+          </Link>
+        </PanelBody>
+      </Panel>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>

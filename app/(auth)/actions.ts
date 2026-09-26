@@ -4,10 +4,13 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { signInSchema, signUpSchema } from "@/lib/validation/schemas";
+import { AUTH_UNAVAILABLE, authErrorMessage } from "@/lib/auth-feedback";
+import { siteUrl } from "@/lib/env";
 
 export interface AuthFormState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  confirmationRequired?: boolean;
 }
 
 function fieldErrorsOf(issues: { path: PropertyKey[]; message: string }[]) {
@@ -34,19 +37,22 @@ export async function signInAction(
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
-    // Pesan disamarkan: jangan bocorkan email mana yang terdaftar.
-    return { error: "Email atau kata sandi salah." };
+    return { error: authErrorMessage(error, "sign-in") };
   }
 
-  const { data } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError || !data.user) return { error: AUTH_UNAVAILABLE };
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role")
-    .eq("id", data.user?.id ?? "")
+    .eq("id", data.user.id)
     .maybeSingle();
+  if (profileError || !profile) {
+    return { error: "Profil akun belum tersedia. Hubungi admin VMS." };
+  }
 
   revalidatePath("/", "layout");
-  const role = (profile?.role as string | undefined) ?? "factory";
+  const role = profile.role as string;
   redirect(role === "admin" ? "/admin" : role === "grader" ? "/grader" : "/factory");
 }
 
@@ -70,18 +76,20 @@ export async function signUpAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName, phone: parsed.data.phone },
+      emailRedirectTo: `${siteUrl()}/sign-in`,
     },
   });
 
   if (error) {
-    return { error: "Pendaftaran gagal. Email mungkin sudah terdaftar." };
+    return { error: authErrorMessage(error, "sign-up") };
   }
 
+  if (!data.session) return { confirmationRequired: true };
   revalidatePath("/", "layout");
   redirect("/factory");
 }

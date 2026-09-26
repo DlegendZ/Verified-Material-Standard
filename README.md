@@ -49,6 +49,13 @@ npm run db:push
 Perintah itu menjalankan `0001_init.sql`, `0002_rls.sql`, dan `seed.sql` secara berurutan. Ini
 perintah manual yang dijalankan dari mesin sendiri, bukan bagian dari proses deploy.
 
+Untuk pendaftaran dengan konfirmasi email, tambahkan `NEXT_PUBLIC_SITE_URL/sign-in`
+ke daftar **Redirect URLs** di Supabase Authentication → URL Configuration. Atur
+**Site URL** ke origin aplikasi yang dapat dibuka dari email pengguna, bukan URL
+project Supabase. Untuk demo lokal, `http://localhost:3000/sign-in` hanya bisa
+dibuka dari komputer yang menjalankan aplikasi. Setelah membuka tautan konfirmasi,
+pengguna masuk memakai email dan kata sandi yang didaftarkan.
+
 Alternatif tanpa skrip: buka SQL Editor di dashboard Supabase, lalu tempel isi ketiga file itu
 satu per satu dengan urutan yang sama.
 

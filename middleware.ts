@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { normalizeSupabaseUrl } from "@/lib/env";
 
 /**
- * Menyegarkan sesi Supabase di setiap request dan menjaga rute per peran.
+ * Menyegarkan sesi Supabase di rute akun dan menjaga rute per peran.
  *
  * Penjagaan di sini hanya lapis pertama supaya pengguna tidak melihat halaman
  * kosong; keputusan akses yang sebenarnya tetap ada di Server Action + RLS.
@@ -88,10 +88,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Semua rute kecuali aset statis. Halaman verifikasi publik ikut lewat sini
-     * tapi tidak pernah diblokir — memang harus bisa dibuka tanpa sesi.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/factory/:path*",
+    "/grader/:path*",
+    "/admin/:path*",
+    "/sign-in",
+    "/sign-up",
   ],
 };
