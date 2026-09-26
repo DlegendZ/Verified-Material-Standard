@@ -17,7 +17,7 @@ test("landing page menjelaskan produk dan menyediakan pencarian sertifikat", asy
 test("kode sertifikat yang tidak ada menampilkan halaman khusus, bukan error", async ({ page }) => {
   await page.goto("/verify/VMS-9999-ZZZZZZZZ");
 
-  await expect(page.getByText("Sertifikat tidak ditemukan")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sertifikat tidak ditemukan" })).toBeVisible();
   await expect(page.getByPlaceholder("VMS-")).toBeVisible();
 });
 

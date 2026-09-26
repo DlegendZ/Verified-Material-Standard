@@ -11,6 +11,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Kata sandi").fill(PASSWORD);
   await page.getByRole("button", { name: "Masuk" }).click();
+  await expect(page).toHaveURL(/\/(factory|grader|admin)$/);
 }
 
 test.describe.configure({ mode: "serial" });
