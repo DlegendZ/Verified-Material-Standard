@@ -26,7 +26,7 @@
   <path d="M105 207c10 8 27 8 36 0" stroke="#B8F1F5" stroke-width="4" stroke-linecap="round"/>
   <rect x="105" y="240" width="39" height="16" rx="8" fill="white" fill-opacity=".8"/>
   <path d="M123 131v-15" stroke="#6A8CDE" stroke-width="5" stroke-linecap="round"/><circle cx="123" cy="110" r="7" fill="#FFAE73"/>
-  <path d="M80 236c-23-6-29 7-20 17m114-19c22-3 29 10 19 18" stroke="#6486D9" stroke-width="9" stroke-linecap="round"/>
+  <path d="M80 236c-23-6-29 7-20 17" stroke="#6486D9" stroke-width="9" stroke-linecap="round"/>
   <path d="M176 237c15-11 19-28 23-44" stroke="#6989D9" stroke-width="9" stroke-linecap="round"/>
   <path d="m77 73 5 10 10 5-10 5-5 10-5-10-10-5 10-5 5-10Zm357 122 4 9 9 4-9 4-4 9-4-9-9-4 9-4 4-9Z" fill="#EF9B74"/>
   <circle cx="393" cy="63" r="5" fill="#8D75D9"/><circle cx="52" cy="212" r="4" fill="#4BBEDA"/>

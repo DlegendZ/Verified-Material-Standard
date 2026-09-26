@@ -21,8 +21,8 @@
   <path d="M105 207c8 6 25 6 33 0" stroke="#C8ECFF" stroke-width="4" stroke-linecap="round"/>
   <rect x="103" y="240" width="39" height="15" rx="7.5" fill="white" fill-opacity=".78"/>
   <path d="M121 133v-15" stroke="#7E7CDC" stroke-width="5" stroke-linecap="round"/><circle cx="121" cy="113" r="7" fill="#FFB775"/>
-  <path d="M79 238c-23-3-31 9-24 19m116-22c19-3 27 10 18 21" stroke="#7772D2" stroke-width="9" stroke-linecap="round"/>
-  <path d="M172 247c24-3 38-18 48-32" stroke="#7370D6" stroke-width="9" stroke-linecap="round"/>
+  <path d="M79 238c-23-3-31 9-24 19" stroke="#7772D2" stroke-width="9" stroke-linecap="round"/>
+  <path d="M171 236c22 3 37-6 49-21" stroke="#7370D6" stroke-width="9" stroke-linecap="round"/>
   <circle cx="243" cy="182" r="37" fill="#FFFFFF79" stroke="#FFFFFF" stroke-width="8"/><circle cx="243" cy="182" r="25" stroke="#5A70CB" stroke-width="3"/>
   <path d="m268 209 29 29" stroke="#4556B6" stroke-width="11" stroke-linecap="round"/>
   <path d="m59 71 5 10 10 5-10 5-5 10-5-10-10-5 10-5 5-10Zm368 83 4 8 8 4-8 4-4 8-4-8-8-4 8-4 4-8Z" fill="#9891E9"/>

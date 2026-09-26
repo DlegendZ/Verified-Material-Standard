@@ -889,11 +889,20 @@
   position: relative;
   max-width: 400px;
   margin: 28px 0 -22px;
-  border-radius: 34px;
-  background: radial-gradient(circle at 50% 55%, #e3f1ff, transparent 70%);
+}
+
+.criteria-art::before {
+  content: "";
+  position: absolute;
+  inset: -8% -4%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #91c9ff55, transparent);
+  filter: blur(18px);
+  pointer-events: none;
 }
 
 .criteria-art img {
+  position: relative;
   width: 100%;
   height: auto;
   animation: art-hover 8s ease-in-out -2s infinite;
