@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 610" fill="none">
+  <defs>
+    <linearGradient id="blue" x1="131" y1="70" x2="520" y2="526" gradientUnits="userSpaceOnUse"><stop stop-color="#9BEAFF"/><stop offset=".34" stop-color="#4789F8"/><stop offset="1" stop-color="#322BD1"/></linearGradient>
+    <linearGradient id="top" x1="161" y1="205" x2="454" y2="437" gradientUnits="userSpaceOnUse"><stop stop-color="#F8FEFF"/><stop offset=".52" stop-color="#D9F3FF"/><stop offset="1" stop-color="#7FB9FC"/></linearGradient>
+    <linearGradient id="side" x1="150" y1="322" x2="457" y2="521" gradientUnits="userSpaceOnUse"><stop stop-color="#3988EC"/><stop offset="1" stop-color="#2227A0"/></linearGradient>
+    <linearGradient id="card" x1="381" y1="120" x2="590" y2="382" gradientUnits="userSpaceOnUse"><stop stop-color="white"/><stop offset="1" stop-color="#DDEAFF"/></linearGradient>
+    <linearGradient id="mascot" x1="86" y1="319" x2="172" y2="423" gradientUnits="userSpaceOnUse"><stop stop-color="#FCFEFF"/><stop offset="1" stop-color="#A6CEFF"/></linearGradient>
+    <filter id="shadow" x="0" y="0" width="680" height="610" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="23"/></filter>
+    <filter id="cardShadow" x="300" y="52" width="355" height="410" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="15"/></filter>
+  </defs>
+  <ellipse cx="346" cy="523" rx="228" ry="39" fill="#4886E8" opacity=".18" filter="url(#shadow)"/>
+  <path d="M55 418c51-103 127-210 258-261 93-36 191-15 276 65" stroke="#7BB8FF" stroke-opacity=".35" stroke-width="2" stroke-dasharray="5 9"/>
+  <path d="M94 477c70 90 301 99 468 15" stroke="#97B8EF" stroke-opacity=".55" stroke-width="2"/>
+  <circle cx="573" cy="165" r="5" fill="#83BEFF"/><circle cx="80" cy="254" r="4" fill="#6FA9FF"/><circle cx="570" cy="466" r="3" fill="#629DFF"/>
+  <path d="m173 350 155-92 167 93-158 94-164-95Z" fill="#1234AC" opacity=".2" filter="url(#shadow)"/>
+  <path d="m158 388 172-99 179 101v47L334 540 158 437v-49Z" fill="url(#side)"/>
+  <path d="m334 491 175-101v47L334 540v-49Z" fill="#2435AB"/>
+  <path d="m158 388 172-99 179 101-175 101-176-103Z" fill="url(#blue)" stroke="#9FD5FF" stroke-width="2"/>
+  <path d="m185 390 145-84 153 86-149 85-149-87Z" fill="#E2F7FF" fill-opacity=".28" stroke="white" stroke-opacity=".65"/>
+  <path d="m174 333 156-90 162 91v41L332 469l-158-93v-43Z" fill="#3C79E3"/>
+  <path d="m332 428 160-94v41l-160 94v-41Z" fill="#2755C5"/>
+  <path d="m174 333 156-90 162 91-160 94-158-95Z" fill="url(#top)" stroke="white" stroke-width="3"/>
+  <path d="m215 335 114-67 121 68-118 69-117-70Z" fill="white" fill-opacity=".42" stroke="white" stroke-opacity=".75"/>
+  <path d="m190 280 138-80 143 81v34L330 398l-140-83v-35Z" fill="#B2DCFF"/>
+  <path d="m330 364 141-83v34l-141 83v-34Z" fill="#78B6F7"/>
+  <path d="m190 280 138-80 143 81-141 83-140-84Z" fill="#F6FCFF" stroke="white" stroke-width="3"/>
+  <path d="m225 280 102-60 108 62-105 61-105-63Z" fill="#CAE9FF" stroke="#A3CFFF"/>
+  <path d="m260 280 68-40 72 42-70 41-70-43Z" fill="#F8FDFF" stroke="white"/>
+  <path d="m328 255-44 26 46 27 45-26-47-27Z" fill="#D6EDFF"/>
+  <path d="m318 278 10 10 22-26" stroke="#3979EA" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="362" y="99" width="233" height="283" rx="25" fill="#3261B7" opacity=".2" filter="url(#cardShadow)"/>
+  <g transform="rotate(8 476 226)">
+    <rect x="369" y="92" width="220" height="275" rx="22" fill="url(#card)" stroke="white" stroke-width="3"/>
+    <rect x="390" y="114" width="178" height="231" rx="14" stroke="#B9D5FA"/>
+    <circle cx="428" cy="153" r="20" fill="#E6F2FF"/><path d="m416 153 8 8 17-18" stroke="#3879EC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="454" y="151" fill="#38527F" font-size="11" font-family="Arial,sans-serif" font-weight="700" letter-spacing="1.5">VERIFIED</text>
+    <text x="454" y="167" fill="#8AA1C6" font-size="9" font-family="Arial,sans-serif" letter-spacing="1">MATERIAL</text>
+    <path d="M402 190h154" stroke="#CFDEEF"/>
+    <text x="401" y="216" fill="#8094B6" font-size="11" font-family="Arial,sans-serif">SAMPLE GRADE</text>
+    <text x="401" y="283" fill="#326BE5" font-size="68" font-family="Arial,sans-serif" font-weight="700">B</text>
+    <path d="M472 245h73M472 257h57M472 269h66" stroke="#B7CAE6" stroke-width="6" stroke-linecap="round"/>
+    <path d="M402 307h146" stroke="#D2E1F4"/><circle cx="416" cy="328" r="6" fill="#62C9E9"/><path d="M433 328h104" stroke="#B8CEEB" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <g transform="rotate(-9 121 388)">
+    <path d="M72 375c-18-2-22 17-14 25 7 7 15 4 22 1M173 371c16-5 27 7 22 17-3 7-11 8-20 7" stroke="#6E9DEC" stroke-width="9" stroke-linecap="round"/>
+    <path d="M103 438c-7 13-4 21 2 23m44-23c7 13 5 21-2 23" stroke="#638CE0" stroke-width="9" stroke-linecap="round"/>
+    <rect x="72" y="329" width="104" height="113" rx="32" fill="url(#mascot)" stroke="white" stroke-width="4"/>
+    <rect x="86" y="344" width="76" height="62" rx="23" fill="#365CBA"/>
+    <ellipse cx="108" cy="370" rx="5" ry="8" fill="white"/><ellipse cx="140" cy="370" rx="5" ry="8" fill="white"/>
+    <path d="M115 391c7 5 17 5 24 0" stroke="#A6EAFB" stroke-width="3" stroke-linecap="round"/>
+    <rect x="105" y="414" width="39" height="11" rx="5.5" fill="white" fill-opacity=".8"/>
+    <path d="M124 326v-13" stroke="#6F9FE7" stroke-width="5" stroke-linecap="round"/><circle cx="124" cy="307" r="6" fill="#5C83E7"/>
+  </g>
+  <path d="m100 181 5 12 12 5-12 5-5 12-5-12-12-5 12-5 5-12Zm440 227 4 9 9 4-9 4-4 9-4-9-9-4 9-4 4-9Z" fill="#7FB8F6"/>
+</svg>
