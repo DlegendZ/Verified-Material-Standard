@@ -26,10 +26,14 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={toggle}
-      className="inline-flex size-9 items-center justify-center rounded-[3px] border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink"
+      className="inline-flex size-9 items-center justify-center rounded-full border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink"
       aria-label={dark ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
     >
-      {dark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
+      {dark ? (
+        <Sun className="size-4" aria-hidden />
+      ) : (
+        <Moon className="size-4" aria-hidden />
+      )}
     </button>
   );
 }
