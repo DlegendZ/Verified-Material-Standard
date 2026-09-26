@@ -6,7 +6,7 @@ import { LandingMotion } from "@/components/landing-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VerifyCodeForm } from "@/components/verify-code-form";
 import { Wordmark } from "@/components/wordmark";
-import { APP, CRITERIA_EXPLAINER } from "@/lib/text";
+import { CRITERIA_EXPLAINER } from "@/lib/text";
 
 const STEPS = [
   {
@@ -384,7 +384,6 @@ export default function LandingPage() {
             <p className="text-sm font-semibold text-ink">
               Material punya cerita. Kami bantu membacanya.
             </p>
-            <p className="mt-1 text-xs text-ink-muted">{APP.demoNotice}</p>
           </div>
         </div>
       </footer>

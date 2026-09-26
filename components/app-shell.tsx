@@ -2,7 +2,7 @@ import Link from "next/link";
 import { signOutAction } from "@/app/(auth)/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/wordmark";
-import { APP, ROLE_LABELS } from "@/lib/text";
+import { ROLE_LABELS } from "@/lib/text";
 import type { UserRole } from "@/lib/types/db";
 
 export interface NavItem {
@@ -75,11 +75,6 @@ export function AppShell({
         {children}
       </main>
 
-      <footer className="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6">
-        <p className="border-t border-line pt-4 text-xs text-ink-muted">
-          {APP.demoNotice}
-        </p>
-      </footer>
     </div>
   );
 }
