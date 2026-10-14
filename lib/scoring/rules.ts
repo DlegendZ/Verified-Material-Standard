@@ -4,14 +4,20 @@
  * Sumber kebenaran domain: grading-system.md Section 2-9, SRD Bab 7.
  * Semua angka di sini sengaja dikumpulkan di satu tempat agar mudah diaudit.
  */
-import type { ConsistencyLevel, Criterion, DocumentationInput, Grade } from "./types";
+import type {
+  ConsistencyLevel,
+  Criterion,
+  DocumentationInput,
+  Grade,
+  MeasurementMethod,
+} from "./types";
 
 /**
  * Versi rumus. WAJIB dinaikkan setiap kali angka/aturan di file ini berubah,
  * karena nilai ini ikut disimpan di `grading_results.scoring_version` supaya
  * sertifikat lama tidak pernah berubah artinya.
  */
-export const SCORING_VERSION = "1.0.0";
+export const SCORING_VERSION = "2.0.0";
 
 /** Bobot akhir tiap kriteria (SRD Bab 7.1). Totalnya 100. */
 export const FINAL_WEIGHTS = {
@@ -36,7 +42,7 @@ export const REQUIRED_SAMPLE_POINTS = ["top", "middle", "bottom"] as const;
  *
  * Di dalam kriteria quantity_accuracy, engine membedakan sub-kriteria berat dan
  * spesifikasi HANYA lewat sub_key ini — bukan lewat urutan baris atau isi label.
- * Kategori Minyak Jelantah hanya punya baris weight_accuracy (bobot 100), dan
+ * Kategori dengan bobot berat 100 hanya punya baris weight_accuracy, dan
  * ketiadaan spec_accuracy bukan error.
  */
 export const WEIGHT_ACCURACY_SUB_KEY = "weight_accuracy";
@@ -70,7 +76,7 @@ export function consistencyLevelFromSpread(spread: number): ConsistencyLevel {
  * Tabel deviasi berat (SRD Bab 7.6).
  * Batas bersifat inklusif di sisi atas: tepat 2% → 100, tepat 5% → 80, tepat 10% → 50.
  */
-export function weightAccuracyScore(deviationPct: number): number {
+export function deviationScore(deviationPct: number): number {
   if (deviationPct <= 2) return 100;
   if (deviationPct <= 5) return 80;
   if (deviationPct <= 10) return 50;
@@ -81,11 +87,24 @@ export function weightAccuracyScore(deviationPct: number): number {
  * Tabel akurasi spesifikasi (SRD Bab 7.6).
  * ≥90 → 100, 75-89 → 75, 50-74 → 50, <50 → 20.
  */
-export function specAccuracyScore(specMatchPct: number): number {
+export function percentPassScore(specMatchPct: number): number {
   if (specMatchPct >= 90) return 100;
   if (specMatchPct >= 75) return 75;
   if (specMatchPct >= 50) return 50;
   return 20;
+}
+
+export const weightAccuracyScore = deviationScore;
+export const specAccuracyScore = percentPassScore;
+export const MEASUREMENT_METHODS: MeasurementMethod[] = [
+  "moisture_meter",
+  "touch_estimate",
+];
+export function deviationPct(claimed: number, observed: number): number {
+  return (Math.abs(claimed - observed) * 100) / claimed;
+}
+export function unitPassPct(passed: number, checked: number): number {
+  return (passed * 100) / checked;
 }
 
 /** Empat item dokumentasi, masing-masing 25 poin (SRD Bab 7.6). */

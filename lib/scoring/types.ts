@@ -20,6 +20,28 @@ export type Grade = "A" | "B" | "C" | "D";
 /** Level sebaran antar titik yang dipakai untuk skor konsistensi. */
 export type ConsistencyLevel = "small" | "medium" | "large";
 
+export type ScoringMethod = "scale" | "unit_count";
+export type MeasurementMethod = "moisture_meter" | "touch_estimate";
+export type ClaimMode = "bundle" | "weight";
+export interface SamplingProfile {
+  code: string;
+  unitsPerPoint: number;
+  claimMode: ClaimMode;
+}
+export interface UnitCount {
+  passed: number;
+  checked: number;
+}
+export interface CountCheckInput {
+  key: string;
+  label: string;
+  claimed: number;
+  observed: number;
+}
+export interface CountCheckBreakdown extends CountCheckInput {
+  deviationPct: number;
+}
+
 /**
  * Satu baris konfigurasi sub-kriteria — cerminan tabel `category_criteria`.
  * `weightPct` adalah bobot DI DALAM kriterianya dan wajib berjumlah 100
@@ -33,6 +55,9 @@ export interface SubCriterionConfig {
   isOdor: boolean;
   /** Hanya relevan bila `isOdor`; null berarti pakai cap default 40. */
   odorOverrideCap: number | null;
+  scoringMethod: ScoringMethod;
+  requiresMeasurementMethod: boolean;
+  helpText?: string | null;
 }
 
 /** Konfigurasi lengkap satu kategori material. */
@@ -48,6 +73,8 @@ export interface SamplePointInput {
   odorLevel: OdorLevel;
   /** subKey → skor mentah 0-100, mencakup sub-kriteria purity & cleanliness. */
   scores: Record<string, number>;
+  unitCounts?: Record<string, UnitCount>;
+  measurementMethods?: Record<string, MeasurementMethod>;
 }
 
 /** Input Langkah 3 grader: akurasi kuantitas & spesifikasi. */
@@ -55,7 +82,9 @@ export interface QuantityInput {
   claimedWeightKg: number;
   actualWeightKg: number;
   /** Persentase sampel yang sesuai spesifikasi klaim, 0-100. */
-  specMatchPct: number;
+  specMatchPct?: number;
+  countChecks?: CountCheckInput[];
+  specUnits?: UnitCount;
 }
 
 /** Input Langkah 4 grader: 4 item dokumentasi, masing-masing 25 poin. */
@@ -72,6 +101,7 @@ export interface GradingInput {
   samplePoints: SamplePointInput[];
   quantity: QuantityInput;
   documentation: DocumentationInput;
+  samplingProfile?: SamplingProfile;
 }
 
 /** Rincian perhitungan satu titik sampel. */
@@ -92,7 +122,12 @@ export interface SubContribution {
   criterion: Criterion;
   subKey: string;
   label: string;
-  rawScore: number;
+  rawScore: number | null;
+  method: ScoringMethod;
+  unitsPassed: number | null;
+  unitsChecked: number | null;
+  passPct: number | null;
+  measurementMethod: MeasurementMethod | null;
   weightPct: number;
   /** rawScore × weightPct / 100; 0 bila diabaikan karena override. */
   contribution: number;
@@ -111,8 +146,14 @@ export interface ConsistencyBreakdown {
 }
 
 export interface QuantityBreakdown {
+  weightDeviationPct: number;
+  countChecks: CountCheckBreakdown[];
   deviationPct: number;
+  deviationSource: string;
   weightScore: number;
+  specMatchPct: number | null;
+  specUnitsPassed: number | null;
+  specUnitsChecked: number | null;
   specScore: number;
   weightWeightPct: number;
   specWeightPct: number;
@@ -147,6 +188,7 @@ export interface GradingResult {
   grade: Grade;
   scoringVersion: string;
   breakdown: {
+    samplingProfile: SamplingProfile | null;
     samplePoints: SamplePointBreakdown[];
     consistency: ConsistencyBreakdown;
     quantity: QuantityBreakdown;

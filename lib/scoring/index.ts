@@ -20,6 +20,10 @@ import {
   SPEC_ACCURACY_SUB_KEY,
   WEIGHT_ACCURACY_SUB_KEY,
   WEIGHT_SUM_EPSILON,
+  MEASUREMENT_METHODS,
+  CRITERION_LABELS,
+  deviationPct,
+  unitPassPct,
   consistencyLevelFromSpread,
   gradeFromFinalScore,
   specAccuracyScore,
@@ -41,6 +45,8 @@ import type {
   SamplePointInput,
   SubContribution,
   SubCriterionConfig,
+  SamplingProfile,
+  UnitCount,
 } from "./types";
 
 export * from "./types";
@@ -57,9 +63,18 @@ export class ScoringError extends Error {
   }
 }
 
-function subsOf(category: CategoryConfig, criterion: Criterion): SubCriterionConfig[] {
+function subsOf(
+  category: CategoryConfig,
+  criterion: Criterion,
+): SubCriterionConfig[] {
   return category.criteria.filter((c) => c.criterion === criterion);
 }
+
+const POINT_LABELS = {
+  top: "Atas",
+  middle: "Tengah",
+  bottom: "Bawah",
+} as const;
 
 /**
  * Memvalidasi konfigurasi kategori.
@@ -76,7 +91,7 @@ export function validateCategoryConfig(category: CategoryConfig): void {
     if (subs.length === 0) {
       throw new ScoringError(
         "CATEGORY_CRITERION_EMPTY",
-        `Kategori "${category.code}" tidak punya sub-kriteria untuk ${criterion}.`,
+        `Kategori "${category.code}" tidak punya sub-kriteria untuk ${CRITERION_LABELS[criterion]}.`,
       );
     }
 
@@ -89,6 +104,16 @@ export function validateCategoryConfig(category: CategoryConfig): void {
         );
       }
       seen.add(sub.subKey);
+
+      if (
+        criterion === "quantity_accuracy" &&
+        sub.scoringMethod === "unit_count"
+      ) {
+        throw new ScoringError(
+          "CATEGORY_QUANTITY_METHOD_INVALID",
+          `Sub-kriteria ${sub.label} wajib memakai skala 0–100.`,
+        );
+      }
 
       if (!Number.isFinite(sub.weightPct) || sub.weightPct < 0) {
         throw new ScoringError(
@@ -114,10 +139,13 @@ export function validateCategoryConfig(category: CategoryConfig): void {
       `Kategori "${category.code}" wajib punya tepat 1 sub-kriteria bau, ditemukan ${odorSubs.length}.`,
     );
   }
-  if (odorSubs[0].criterion !== "cleanliness") {
+  if (
+    odorSubs[0].criterion !== "cleanliness" ||
+    odorSubs[0].scoringMethod === "unit_count"
+  ) {
     throw new ScoringError(
       "CATEGORY_ODOR_SUB_INVALID",
-      `Sub-kriteria bau kategori "${category.code}" wajib berada di kriteria cleanliness.`,
+      `Sub-kriteria bau kategori "${category.code}" wajib berada di Kebersihan & Kontaminasi dan memakai skala 0–100.`,
     );
   }
 }
@@ -141,7 +169,7 @@ function validateSamplePoints(points: SamplePointInput[]): void {
     if (matches.length !== 1) {
       throw new ScoringError(
         "SAMPLE_POINT_COUNT_INVALID",
-        `Titik sampel "${required}" wajib ada tepat 1, ditemukan ${matches.length}.`,
+        `Titik sampel ${POINT_LABELS[required]} wajib ada tepat 1, ditemukan ${matches.length}.`,
       );
     }
   }
@@ -150,48 +178,105 @@ function validateSamplePoints(points: SamplePointInput[]): void {
     if (![1, 2, 3].includes(point.odorLevel)) {
       throw new ScoringError(
         "ODOR_LEVEL_INVALID",
-        `Level bau titik "${point.point}" tidak valid: ${point.odorLevel}.`,
+        `Level bau titik ${POINT_LABELS[point.point]} tidak valid: ${point.odorLevel}.`,
       );
     }
   }
 }
 
-function readRawScore(point: SamplePointInput, sub: SubCriterionConfig): number {
+function readRawScore(
+  point: SamplePointInput,
+  sub: SubCriterionConfig,
+): number {
   const raw = point.scores[sub.subKey];
   if (raw === undefined || raw === null) {
     throw new ScoringError(
       "SUB_SCORE_MISSING",
-      `Skor sub-kriteria "${sub.subKey}" belum diisi di titik "${point.point}".`,
+      `Titik ${POINT_LABELS[point.point]}: skor ${sub.label} belum diisi.`,
     );
   }
   if (!Number.isFinite(raw) || raw < 0 || raw > 100) {
     throw new ScoringError(
       "SUB_SCORE_OUT_OF_RANGE",
-      `Skor "${sub.subKey}" di titik "${point.point}" harus 0-100, diterima ${raw}.`,
+      `Titik ${POINT_LABELS[point.point]}: skor ${sub.label} harus 0–100, diterima ${raw}.`,
     );
   }
   return raw;
 }
 
-function weightedAverage(
-  point: SamplePointInput,
-  subs: SubCriterionConfig[],
-): { score: number; contributions: SubContribution[] } {
-  const contributions: SubContribution[] = subs.map((sub) => {
-    const rawScore = readRawScore(point, sub);
-    return {
-      criterion: sub.criterion,
-      subKey: sub.subKey,
-      label: sub.label,
-      rawScore,
-      weightPct: sub.weightPct,
-      contribution: (rawScore * sub.weightPct) / 100,
-      ignoredByOverride: false,
-    };
-  });
+function validateUnitCount(count: UnitCount, label: string): void {
+  if (
+    !Number.isInteger(count.checked) ||
+    count.checked < 1 ||
+    !Number.isInteger(count.passed) ||
+    count.passed < 0 ||
+    count.passed > count.checked
+  ) {
+    throw new ScoringError(
+      "UNIT_COUNT_INVALID",
+      `${label}: jumlah unit wajib bulat, diperiksa ≥1 dan lolos antara 0–jumlah diperiksa.`,
+    );
+  }
+}
 
-  const score = contributions.reduce((acc, c) => acc + c.contribution, 0);
-  return { score, contributions };
+function contributionOf(
+  point: SamplePointInput,
+  sub: SubCriterionConfig,
+  profile?: SamplingProfile,
+): SubContribution {
+  const overridden =
+    sub.criterion === "cleanliness" && point.odorLevel === ODOR_OVERRIDE_LEVEL;
+  const method = sub.scoringMethod ?? "scale";
+  const count = point.unitCounts?.[sub.subKey];
+  const supplied =
+    method === "unit_count" ? count != null : point.scores[sub.subKey] != null;
+  const base: SubContribution = {
+    criterion: sub.criterion,
+    subKey: sub.subKey,
+    label: sub.label,
+    weightPct: sub.weightPct,
+    method,
+    rawScore: null,
+    unitsPassed: null,
+    unitsChecked: null,
+    passPct: null,
+    measurementMethod: null,
+    contribution: 0,
+    ignoredByOverride: overridden,
+  };
+  if (overridden && !supplied) return base;
+  const label = `Titik ${POINT_LABELS[point.point]}: ${sub.label}`;
+  if (method === "unit_count") {
+    if (!count)
+      throw new ScoringError(
+        "UNIT_COUNT_MISSING",
+        `${label}: jumlah unit lolos/diperiksa belum diisi.`,
+      );
+    validateUnitCount(count, label);
+    if (profile && count.checked !== profile.unitsPerPoint) {
+      throw new ScoringError(
+        "UNIT_COUNT_MISMATCH",
+        `${label} wajib diperiksa pada ${profile.unitsPerPoint} unit, diterima ${count.checked}.`,
+      );
+    }
+    base.unitsPassed = count.passed;
+    base.unitsChecked = count.checked;
+    base.passPct = unitPassPct(count.passed, count.checked);
+    base.rawScore = specAccuracyScore(base.passPct);
+  } else {
+    base.rawScore = readRawScore(point, sub);
+  }
+  if (sub.requiresMeasurementMethod) {
+    const measurement = point.measurementMethods?.[sub.subKey];
+    if (!measurement || !MEASUREMENT_METHODS.includes(measurement))
+      throw new ScoringError(
+        "MEASUREMENT_METHOD_MISSING",
+        `${label}: pilih metode ukur kelembapan.`,
+      );
+    base.measurementMethod = measurement;
+  }
+  base.contribution = overridden ? 0 : (base.rawScore * sub.weightPct) / 100;
+  return base;
 }
 
 /**
@@ -204,28 +289,29 @@ function weightedAverage(
 export function computeSamplePoint(
   category: CategoryConfig,
   point: SamplePointInput,
+  profile?: SamplingProfile,
 ): SamplePointBreakdown {
-  const purity = weightedAverage(point, subsOf(category, "purity"));
-  const cleanlinessSubs = subsOf(category, "cleanliness");
-  const cleanliness = weightedAverage(point, cleanlinessSubs);
+  const contributions = category.criteria
+    .filter((s) => s.criterion !== "quantity_accuracy")
+    .map((s) => contributionOf(point, s, profile));
 
   const overridden = point.odorLevel === ODOR_OVERRIDE_LEVEL;
   const cap = odorOverrideCapOf(category);
 
-  const cleanlinessContributions = cleanliness.contributions.map((c) => ({
-    ...c,
-    contribution: overridden ? 0 : c.contribution,
-    ignoredByOverride: overridden,
-  }));
-
   return {
     point: point.point,
     odorLevel: point.odorLevel,
-    purity: purity.score,
-    cleanliness: overridden ? cap : cleanliness.score,
+    purity: contributions
+      .filter((s) => s.criterion === "purity")
+      .reduce((sum, s) => sum + s.contribution, 0),
+    cleanliness: overridden
+      ? cap
+      : contributions
+          .filter((s) => s.criterion === "cleanliness")
+          .reduce((sum, s) => sum + s.contribution, 0),
     cleanlinessOverridden: overridden,
     cleanlinessOverrideCap: overridden ? cap : null,
-    contributions: [...purity.contributions, ...cleanlinessContributions],
+    contributions,
   };
 }
 
@@ -237,7 +323,10 @@ function spread(values: number[]): number {
   return Math.max(...values) - Math.min(...values);
 }
 
-function worseLevel(a: ConsistencyLevel, b: ConsistencyLevel): ConsistencyLevel {
+function worseLevel(
+  a: ConsistencyLevel,
+  b: ConsistencyLevel,
+): ConsistencyLevel {
   return CONSISTENCY_SEVERITY[a] >= CONSISTENCY_SEVERITY[b] ? a : b;
 }
 
@@ -248,7 +337,9 @@ function worseLevel(a: ConsistencyLevel, b: ConsistencyLevel): ConsistencyLevel 
  * parah. Konservatif secara sengaja (SRD Bab 7.5) — satu dimensi yang sangat
  * tidak konsisten sudah cukup jadi red flag.
  */
-export function computeConsistency(points: SamplePointBreakdown[]): ConsistencyBreakdown {
+export function computeConsistency(
+  points: SamplePointBreakdown[],
+): ConsistencyBreakdown {
   const puritySpread = spread(points.map((p) => p.purity));
   const cleanlinessSpread = spread(points.map((p) => p.cleanliness));
 
@@ -270,6 +361,7 @@ export function computeConsistency(points: SamplePointBreakdown[]): ConsistencyB
 export function computeQuantity(
   category: CategoryConfig,
   input: QuantityInput,
+  profile?: SamplingProfile,
 ): QuantityBreakdown {
   if (!Number.isFinite(input.claimedWeightKg) || input.claimedWeightKg <= 0) {
     throw new ScoringError(
@@ -283,18 +375,13 @@ export function computeQuantity(
       `Berat timbang ulang harus >= 0, diterima ${input.actualWeightKg}.`,
     );
   }
-  if (!Number.isFinite(input.specMatchPct) || input.specMatchPct < 0 || input.specMatchPct > 100) {
-    throw new ScoringError(
-      "SPEC_MATCH_OUT_OF_RANGE",
-      `Persentase kesesuaian spesifikasi harus 0-100, diterima ${input.specMatchPct}.`,
-    );
-  }
-
   const subs = subsOf(category, "quantity_accuracy");
 
   // Bobot dicari lewat sub_key, bukan urutan baris atau teks label.
   const unknown = subs.find(
-    (s) => s.subKey !== WEIGHT_ACCURACY_SUB_KEY && s.subKey !== SPEC_ACCURACY_SUB_KEY,
+    (s) =>
+      s.subKey !== WEIGHT_ACCURACY_SUB_KEY &&
+      s.subKey !== SPEC_ACCURACY_SUB_KEY,
   );
   if (unknown) {
     throw new ScoringError(
@@ -306,19 +393,88 @@ export function computeQuantity(
   const weightWeightPct = subs
     .filter((s) => s.subKey === WEIGHT_ACCURACY_SUB_KEY)
     .reduce((acc, s) => acc + s.weightPct, 0);
-  // Minyak Jelantah tidak punya spec_accuracy — hasilnya 0, bukan error.
+  // Kategori tanpa bobot spesifikasi tidak memerlukan input spesifikasi.
   const specWeightPct = subs
     .filter((s) => s.subKey === SPEC_ACCURACY_SUB_KEY)
     .reduce((acc, s) => acc + s.weightPct, 0);
 
-  const deviationPct =
-    (Math.abs(input.claimedWeightKg - input.actualWeightKg) / input.claimedWeightKg) * 100;
-  const weightScore = weightAccuracyScore(deviationPct);
-  const specScore = specAccuracyScore(input.specMatchPct);
+  const weightDeviationPct = deviationPct(
+    input.claimedWeightKg,
+    input.actualWeightKg,
+  );
+  const countChecks = (input.countChecks ?? []).map((c) => {
+    if (
+      !Number.isInteger(c.claimed) ||
+      c.claimed <= 0 ||
+      !Number.isInteger(c.observed) ||
+      c.observed < 0
+    ) {
+      throw new ScoringError(
+        "COUNT_CHECK_INVALID",
+        `${c.label}: klaim jumlah wajib bulat >0, jumlah aktual wajib bulat ≥0.`,
+      );
+    }
+    return { ...c, deviationPct: deviationPct(c.claimed, c.observed) };
+  });
+  if (profile?.claimMode === "bundle" && countChecks.length === 0) {
+    throw new ScoringError(
+      "COUNT_CHECKS_REQUIRED",
+      "Klaim per ikat wajib dibandingkan jumlahnya: isi jumlah batang di ikat Atas, Tengah, Bawah.",
+    );
+  }
+  let appliedDeviation = weightDeviationPct;
+  let deviationSource = "weight";
+  for (const count of countChecks) {
+    if (count.deviationPct > appliedDeviation) {
+      appliedDeviation = count.deviationPct;
+      deviationSource = count.key;
+    }
+  }
+  const weightScore = weightAccuracyScore(appliedDeviation);
+  let specMatchPct: number | null = null;
+  let specUnitsPassed: number | null = null;
+  let specUnitsChecked: number | null = null;
+  let specScore = 0;
+  if (specWeightPct > 0) {
+    if (input.specUnits != null && input.specMatchPct != null)
+      throw new ScoringError(
+        "SPEC_INPUT_AMBIGUOUS",
+        "Isi unit dimensi atau persentase spesifikasi, bukan keduanya.",
+      );
+    if (input.specUnits == null && input.specMatchPct == null)
+      throw new ScoringError(
+        "SPEC_INPUT_MISSING",
+        "Jumlah unit dalam toleransi dimensi belum diisi.",
+      );
+    if (input.specUnits != null) {
+      validateUnitCount(input.specUnits, "Akurasi dimensi");
+      specUnitsPassed = input.specUnits.passed;
+      specUnitsChecked = input.specUnits.checked;
+      specMatchPct = unitPassPct(specUnitsPassed, specUnitsChecked);
+    } else {
+      specMatchPct = input.specMatchPct!;
+    }
+    if (
+      !Number.isFinite(specMatchPct) ||
+      specMatchPct < 0 ||
+      specMatchPct > 100
+    )
+      throw new ScoringError(
+        "SPEC_MATCH_OUT_OF_RANGE",
+        `Persentase kesesuaian spesifikasi harus 0–100, diterima ${specMatchPct}.`,
+      );
+    specScore = specAccuracyScore(specMatchPct);
+  }
 
   return {
-    deviationPct,
+    weightDeviationPct,
+    countChecks,
+    deviationPct: appliedDeviation,
+    deviationSource,
     weightScore,
+    specMatchPct,
+    specUnitsPassed,
+    specUnitsChecked,
     specScore,
     weightWeightPct,
     specWeightPct,
@@ -327,7 +483,9 @@ export function computeQuantity(
 }
 
 /** Kelengkapan dokumentasi: 4 item × 25 poin (SRD Bab 7.6). */
-export function computeDocumentation(input: DocumentationInput): DocumentationBreakdown {
+export function computeDocumentation(
+  input: DocumentationInput,
+): DocumentationBreakdown {
   const items = DOCUMENTATION_ITEMS.map((item) => ({
     key: item.key,
     label: item.label,
@@ -352,14 +510,21 @@ export function computeGrading(input: GradingInput): GradingResult {
   validateSamplePoints(input.samplePoints);
 
   const ordered = REQUIRED_SAMPLE_POINTS.map(
-    (name) => input.samplePoints.find((p) => p.point === name) as SamplePointInput,
+    (name) =>
+      input.samplePoints.find((p) => p.point === name) as SamplePointInput,
   );
-  const samplePoints = ordered.map((point) => computeSamplePoint(input.category, point));
+  const samplePoints = ordered.map((point) =>
+    computeSamplePoint(input.category, point, input.samplingProfile),
+  );
 
   const purityScore = mean(samplePoints.map((p) => p.purity));
   const cleanlinessScore = mean(samplePoints.map((p) => p.cleanliness));
   const consistency = computeConsistency(samplePoints);
-  const quantity = computeQuantity(input.category, input.quantity);
+  const quantity = computeQuantity(
+    input.category,
+    input.quantity,
+    input.samplingProfile,
+  );
   const documentation = computeDocumentation(input.documentation);
 
   const final: FinalCriterionRow[] = [
@@ -413,6 +578,15 @@ export function computeGrading(input: GradingInput): GradingResult {
     finalScore,
     grade: gradeFromFinalScore(finalScore),
     scoringVersion: SCORING_VERSION,
-    breakdown: { samplePoints, consistency, quantity, documentation, final },
+    breakdown: {
+      samplingProfile: input.samplingProfile
+        ? { ...input.samplingProfile }
+        : null,
+      samplePoints,
+      consistency,
+      quantity,
+      documentation,
+      final,
+    },
   };
 }

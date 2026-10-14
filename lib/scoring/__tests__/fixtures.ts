@@ -1,64 +1,174 @@
-/**
- * Fixture bersama untuk unit test scoring engine.
- *
- * Kasus utama diambil persis dari grading-system.md Section 10 /
- * SRD Bab 7.8 (regression fixture wajib).
- */
-import { findSeedCategory } from "@/lib/categories";
-import type { GradingInput, SamplePointInput } from "../types";
-
-export const TEXTILE = findSeedCategory("textile");
-export const UCO = findSeedCategory("uco");
-
-/** Kasus "Sentosa Textile" — klaim 50 kg, hasil yang diharapkan: 64 / grade C. */
-export const SRD_FIXTURE_POINTS: SamplePointInput[] = [
-  {
-    point: "top",
-    odorLevel: 1,
-    scores: { fiber_type_match: 90, uniformity: 80, dirt_level: 90, fraying_level: 85, odor: 95 },
+/** Fixture GS §10; konfigurasi sementara sebelum Fase 2. */
+import type {
+  CategoryConfig,
+  GradingInput,
+  SamplePointInput,
+  SamplingProfile,
+  SubCriterionConfig,
+} from "../types";
+const sub = (
+  criterion: SubCriterionConfig["criterion"],
+  subKey: string,
+  label: string,
+  weightPct: number,
+  extra: Partial<SubCriterionConfig> = {},
+): SubCriterionConfig => ({
+  criterion,
+  subKey,
+  label,
+  weightPct,
+  isOdor: false,
+  odorOverrideCap: null,
+  scoringMethod: "scale",
+  requiresMeasurementMethod: false,
+  ...extra,
+});
+export const SOLID_WOOD: CategoryConfig = {
+  code: "solid_wood",
+  name: "Kayu Solid",
+  criteria: [
+    sub("purity", "species_match", "Jenis kayu sesuai deklarasi", 70),
+    sub(
+      "purity",
+      "uniformity",
+      "Keseragaman jenis & ukuran dalam 1 titik sampel",
+      30,
+    ),
+    sub("cleanliness", "biological_damage", "Kerusakan biologis", 30, {
+      scoringMethod: "unit_count",
+    }),
+    sub(
+      "cleanliness",
+      "foreign_contaminant",
+      "Kontaminan benda asing (paku/sekrup tertanam)",
+      25,
+      { scoringMethod: "unit_count" },
+    ),
+    sub("cleanliness", "moisture", "Kadar kelembapan", 15, {
+      requiresMeasurementMethod: true,
+    }),
+    sub("cleanliness", "physical_defect", "Cacat fisik", 10, {
+      scoringMethod: "unit_count",
+    }),
+    sub("cleanliness", "odor", "Bau", 20, {
+      isOdor: true,
+      odorOverrideCap: 40,
+    }),
+    sub("quantity_accuracy", "weight_accuracy", "Akurasi kuantitas", 60),
+    sub("quantity_accuracy", "spec_accuracy", "Akurasi dimensi", 40),
+  ],
+};
+export const BUNDLE_PROFILE: SamplingProfile = {
+  code: "bundled_sticks",
+  unitsPerPoint: 10,
+  claimMode: "bundle",
+};
+export const WEIGHT_ONLY: CategoryConfig = {
+  ...SOLID_WOOD,
+  code: "synthetic_weight_only",
+  criteria: SOLID_WOOD.criteria
+    .filter((s) => s.subKey !== "spec_accuracy")
+    .map((s) =>
+      s.subKey === "weight_accuracy" ? { ...s, weightPct: 100 } : s,
+    ),
+};
+export const GS_FIXTURE: GradingInput = {
+  category: SOLID_WOOD,
+  samplingProfile: BUNDLE_PROFILE,
+  samplePoints: [
+    {
+      point: "top",
+      odorLevel: 1,
+      scores: { species_match: 92, uniformity: 85, moisture: 90, odor: 95 },
+      unitCounts: {
+        biological_damage: { passed: 10, checked: 10 },
+        foreign_contaminant: { passed: 10, checked: 10 },
+        physical_defect: { passed: 8, checked: 10 },
+      },
+      measurementMethods: { moisture: "touch_estimate" },
+    },
+    {
+      point: "middle",
+      odorLevel: 1,
+      scores: { species_match: 90, uniformity: 80, moisture: 85, odor: 90 },
+      unitCounts: {
+        biological_damage: { passed: 9, checked: 10 },
+        foreign_contaminant: { passed: 8, checked: 10 },
+        physical_defect: { passed: 7, checked: 10 },
+      },
+      measurementMethods: { moisture: "touch_estimate" },
+    },
+    {
+      point: "bottom",
+      odorLevel: 2,
+      scores: { species_match: 80, uniformity: 70, moisture: 55, odor: 70 },
+      unitCounts: {
+        biological_damage: { passed: 8, checked: 10 },
+        foreign_contaminant: { passed: 10, checked: 10 },
+        physical_defect: { passed: 7, checked: 10 },
+      },
+      measurementMethods: { moisture: "touch_estimate" },
+    },
+  ],
+  quantity: {
+    claimedWeightKg: 400,
+    actualWeightKg: 384,
+    countChecks: [
+      {
+        key: "units_per_bundle_top",
+        label: "Isi ikat Atas",
+        claimed: 20,
+        observed: 20,
+      },
+      {
+        key: "units_per_bundle_middle",
+        label: "Isi ikat Tengah",
+        claimed: 20,
+        observed: 19,
+      },
+      {
+        key: "units_per_bundle_bottom",
+        label: "Isi ikat Bawah",
+        claimed: 20,
+        observed: 20,
+      },
+    ],
+    specUnits: { passed: 25, checked: 30 },
   },
-  {
-    point: "middle",
-    odorLevel: 1,
-    scores: { fiber_type_match: 88, uniformity: 85, dirt_level: 85, fraying_level: 80, odor: 90 },
-  },
-  {
-    // Bau level 3 → override: dirt_level & fraying_level tetap disimpan sebagai
-    // data mentah tapi tidak ikut dihitung sama sekali.
-    point: "bottom",
-    odorLevel: 3,
-    scores: { fiber_type_match: 70, uniformity: 60, dirt_level: 80, fraying_level: 75, odor: 10 },
-  },
-];
-
-export const SRD_FIXTURE: GradingInput = {
-  category: TEXTILE,
-  samplePoints: SRD_FIXTURE_POINTS,
-  quantity: { claimedWeightKg: 50, actualWeightKg: 47, specMatchPct: 75 },
   documentation: {
     hasProductionDate: true,
-    hasMultiAnglePhotos: false,
-    hasLotNumber: true,
+    hasMultiAnglePhotos: true,
+    hasLotNumber: false,
     hasLabTest: false,
   },
 };
-
-/** Semua sub-kriteria bernilai `value` pada ketiga titik, level bau bisa diatur. */
-export function flatPoints(value: number, odorLevels: [1 | 2 | 3, 1 | 2 | 3, 1 | 2 | 3]): SamplePointInput[] {
-  const keys = ["fiber_type_match", "uniformity", "dirt_level", "fraying_level", "odor"];
-  const scores = Object.fromEntries(keys.map((k) => [k, value]));
-  return [
-    { point: "top", odorLevel: odorLevels[0], scores: { ...scores } },
-    { point: "middle", odorLevel: odorLevels[1], scores: { ...scores } },
-    { point: "bottom", odorLevel: odorLevels[2], scores: { ...scores } },
-  ];
+export function flatPoints(
+  value = 100,
+  odorLevels: [1 | 2 | 3, 1 | 2 | 3, 1 | 2 | 3] = [1, 1, 1],
+): SamplePointInput[] {
+  return (["top", "middle", "bottom"] as const).map((point, i) => ({
+    point,
+    odorLevel: odorLevels[i],
+    scores: {
+      species_match: value,
+      uniformity: value,
+      moisture: value,
+      odor: value,
+    },
+    unitCounts: Object.fromEntries(
+      ["biological_damage", "foreign_contaminant", "physical_defect"].map(
+        (key) => [key, { passed: 10, checked: 10 }],
+      ),
+    ),
+    measurementMethods: { moisture: "moisture_meter" },
+  }));
 }
-
-/** Input lengkap dengan kuantitas & dokumentasi sempurna — memudahkan isolasi variabel. */
-export function perfectInput(overrides: Partial<GradingInput> = {}): GradingInput {
+export function perfectInput(
+  overrides: Partial<GradingInput> = {},
+): GradingInput {
   return {
-    category: TEXTILE,
-    samplePoints: flatPoints(100, [1, 1, 1]),
+    category: SOLID_WOOD,
+    samplePoints: flatPoints(),
     quantity: { claimedWeightKg: 100, actualWeightKg: 100, specMatchPct: 100 },
     documentation: {
       hasProductionDate: true,
