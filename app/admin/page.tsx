@@ -29,30 +29,31 @@ export default async function AdminDashboardPage() {
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: pendingFactories }, { data: unassigned }, { data: awaiting }] = await Promise.all([
-    supabase
-      .from("factories")
-      .select("*")
-      .eq("verification_status", "pending")
-      .order("created_at", { ascending: true })
-      .returns<FactoryRow[]>(),
-    supabase
-      .from("batches")
-      .select(
-        "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city)",
-      )
-      .eq("status", "submitted")
-      .order("created_at", { ascending: true })
-      .returns<PendingBatch[]>(),
-    supabase
-      .from("batches")
-      .select(
-        "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city), grading_results(grade, final_score)",
-      )
-      .eq("status", "computed")
-      .order("updated_at", { ascending: true })
-      .returns<AwaitingIssuance[]>(),
-  ]);
+  const [{ data: pendingFactories }, { data: unassigned }, { data: awaiting }] =
+    await Promise.all([
+      supabase
+        .from("factories")
+        .select("*")
+        .eq("verification_status", "pending")
+        .order("created_at", { ascending: true })
+        .returns<FactoryRow[]>(),
+      supabase
+        .from("batches")
+        .select(
+          "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city)",
+        )
+        .eq("status", "submitted")
+        .order("created_at", { ascending: true })
+        .returns<PendingBatch[]>(),
+      supabase
+        .from("batches")
+        .select(
+          "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city), grading_results(grade, final_score)",
+        )
+        .eq("status", "computed")
+        .order("updated_at", { ascending: true })
+        .returns<AwaitingIssuance[]>(),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -79,11 +80,17 @@ export default async function AdminDashboardPage() {
         ) : (
           <ul className="divide-y divide-line">
             {(pendingFactories ?? []).map((factory) => (
-              <li key={factory.id} className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+              <li
+                key={factory.id}
+                className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5"
+              >
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">{factory.legal_name}</p>
+                  <p className="text-sm font-medium text-ink">
+                    {factory.legal_name}
+                  </p>
                   <p className="text-sm text-ink-muted">
-                    {factory.city} · didaftarkan {formatDate(factory.created_at)}
+                    {factory.city} · didaftarkan{" "}
+                    {formatDate(factory.created_at)}
                   </p>
                 </div>
                 <FactoryStatusBadge status={factory.verification_status} />
@@ -113,13 +120,18 @@ export default async function AdminDashboardPage() {
                   className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-sunken sm:px-5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-sm font-medium text-ink">{batch.batch_code}</p>
+                    <p className="font-mono text-sm font-medium text-ink">
+                      {batch.batch_code}
+                    </p>
                     <p className="text-sm text-ink-muted">
-                      {batch.factories?.legal_name ?? "—"} · {batch.material_categories?.name ?? "—"}{" "}
-                      · {formatWeight(batch.claimed_weight_kg)}
+                      {batch.factories?.legal_name ?? "—"} ·{" "}
+                      {batch.material_categories?.name ?? "—"} ·{" "}
+                      {formatWeight(batch.claimed_weight_kg)}
                     </p>
                   </div>
-                  <span className="text-sm text-ink-muted">{formatDate(batch.created_at)}</span>
+                  <span className="text-sm text-ink-muted">
+                    {formatDate(batch.created_at)}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -148,7 +160,9 @@ export default async function AdminDashboardPage() {
                   >
                     {grading ? <GradeChip grade={grading.grade} /> : null}
                     <div className="min-w-0 flex-1">
-                      <p className="font-mono text-sm font-medium text-ink">{batch.batch_code}</p>
+                      <p className="font-mono text-sm font-medium text-ink">
+                        {batch.batch_code}
+                      </p>
                       <p className="text-sm text-ink-muted">
                         {batch.factories?.legal_name ?? "—"} ·{" "}
                         {batch.material_categories?.name ?? "—"}

@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
+import { GradeMeaningTable } from "@/components/grade-meaning-table";
+import { SamplingGuide } from "@/components/sampling-guide";
 import {
   ConsistencyNote,
   FinalScoreBreakdown,
   SamplePointTable,
   SubCriteriaDetail,
+  QuantityDetail,
 } from "@/components/grading-breakdown";
 import { BatchStatusBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +16,16 @@ import { DataRow, Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { AssignGraderForm } from "./assign-form";
 import { IssueButtons } from "./issue-buttons";
 import { formatDate, formatPercent, formatWeight } from "@/lib/format";
-import type { GradingResult } from "@/lib/scoring";
+import { normalizeBreakdown } from "@/lib/breakdown";
 import { BUCKETS, publicObjectUrl } from "@/lib/storage";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
-import { GATES, SAMPLE_POINT_LABELS } from "@/lib/text";
+import {
+  GATES,
+  SAMPLE_POINT_LABELS,
+  BATCH_FORM_TEXT,
+  CLAIM_TEXT,
+  REVISION_TEXT,
+} from "@/lib/text";
 import type {
   BatchPhotoRow,
   BatchRow,
@@ -26,13 +35,20 @@ import type {
   GradingResultRow,
   ProfileRow,
   QuantityCheckRow,
+  MaterialCategoryRow,
+  MaterialFormProfileRow,
 } from "@/lib/types/db";
 
 export const metadata = { title: "Review batch" };
 
 interface AdminBatch extends BatchRow {
-  material_categories: { name: string } | null;
-  factories: { legal_name: string; city: string; contact_person: string } | null;
+  material_categories: MaterialCategoryRow | null;
+  material_form_profiles: MaterialFormProfileRow | null;
+  factories: {
+    legal_name: string;
+    city: string;
+    contact_person: string;
+  } | null;
 }
 
 export default async function AdminBatchReviewPage({
@@ -46,7 +62,9 @@ export default async function AdminBatchReviewPage({
 
   const { data: batch } = await supabase
     .from("batches")
-    .select("*, material_categories(name), factories(legal_name, city, contact_person)")
+    .select(
+      "*, material_categories(*), material_form_profiles(*), factories(legal_name, city, contact_person)",
+    )
     .eq("id", id)
     .maybeSingle<AdminBatch>();
 
@@ -61,8 +79,16 @@ export default async function AdminBatchReviewPage({
     { data: photos },
     { data: certificate },
   ] = await Promise.all([
-    supabase.from("profiles").select("id, full_name").eq("role", "grader").returns<ProfileRow[]>(),
-    supabase.from("gate_checks").select("*").eq("batch_id", id).maybeSingle<GateCheckRow>(),
+    supabase
+      .from("profiles")
+      .select("id, full_name")
+      .eq("role", "grader")
+      .returns<ProfileRow[]>(),
+    supabase
+      .from("gate_checks")
+      .select("*")
+      .eq("batch_id", id)
+      .maybeSingle<GateCheckRow>(),
     supabase
       .from("grading_results")
       .select("*")
@@ -70,13 +96,21 @@ export default async function AdminBatchReviewPage({
       .order("computed_at", { ascending: false })
       .limit(1)
       .maybeSingle<GradingResultRow>(),
-    supabase.from("quantity_checks").select("*").eq("batch_id", id).maybeSingle<QuantityCheckRow>(),
+    supabase
+      .from("quantity_checks")
+      .select("*")
+      .eq("batch_id", id)
+      .maybeSingle<QuantityCheckRow>(),
     supabase
       .from("documentation_checks")
       .select("*")
       .eq("batch_id", id)
       .maybeSingle<DocumentationCheckRow>(),
-    supabase.from("batch_photos").select("*").eq("batch_id", id).returns<BatchPhotoRow[]>(),
+    supabase
+      .from("batch_photos")
+      .select("*")
+      .eq("batch_id", id)
+      .returns<BatchPhotoRow[]>(),
     supabase
       .from("certificates")
       .select("*")
@@ -86,7 +120,9 @@ export default async function AdminBatchReviewPage({
       .maybeSingle<CertificateRow>(),
   ]);
 
-  const breakdown = grading ? (grading.breakdown_json as GradingResult["breakdown"]) : null;
+  const breakdown = grading
+    ? normalizeBreakdown(grading.breakdown_json, grading.scoring_version)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -100,15 +136,67 @@ export default async function AdminBatchReviewPage({
         <PanelHeader title="Data pengajuan" />
         <PanelBody>
           <dl>
-            <DataRow label="Kategori material" value={batch.material_categories?.name ?? "—"} />
-            <DataRow label="Klaim berat" value={formatWeight(batch.claimed_weight_kg)} mono />
-            <DataRow label="Klaim spesifikasi" value={batch.claimed_spec ?? "—"} />
+            <DataRow
+              label="Kategori material"
+              value={batch.material_categories?.name ?? "—"}
+            />
+            <DataRow
+              label={CLAIM_TEXT.formProfile}
+              value={batch.material_form_profiles?.name ?? "—"}
+            />
+            <DataRow
+              label={CLAIM_TEXT.declaredMaterialType}
+              value={batch.declared_material_type ?? "—"}
+            />
+            <DataRow
+              label="Klaim berat"
+              value={formatWeight(batch.claimed_weight_kg)}
+              mono
+            />
+            <DataRow
+              label="Klaim spesifikasi"
+              value={batch.claimed_spec ?? "—"}
+            />
             <DataRow label="Nomor lot" value={batch.lot_number ?? "—"} mono />
-            <DataRow label="Tanggal produksi" value={formatDate(batch.production_date)} />
-            <DataRow label="Kontak di lokasi" value={batch.factories?.contact_person ?? "—"} />
+            <DataRow
+              label="Tanggal produksi"
+              value={formatDate(batch.production_date)}
+            />
+            <DataRow
+              label="Kontak di lokasi"
+              value={batch.factories?.contact_person ?? "—"}
+            />
           </dl>
+          {batch.intake_declarations ? (
+            <div className="mt-4 space-y-2">
+              <h3 className="text-sm font-semibold text-ink">
+                {BATCH_FORM_TEXT.declarations}
+              </h3>
+              {(
+                [
+                  "sourceIsProductionResidue",
+                  "noChemicalTreatment",
+                  "singleForm",
+                ] as const
+              ).map((key) => (
+                <p key={key} className="text-sm text-ink-muted">
+                  {batch.intake_declarations?.[key] ? "✓" : "—"}{" "}
+                  {REVISION_TEXT.declarations[key]}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </PanelBody>
       </Panel>
+
+      <SamplingGuide
+        categoryName={batch.material_categories?.name ?? "—"}
+        profile={batch.material_form_profiles}
+        claimedSpec={batch.claimed_spec}
+        thresholdDisclaimer={
+          batch.material_categories?.threshold_disclaimer ?? null
+        }
+      />
 
       {batch.status === "submitted" ? (
         <Panel>
@@ -137,23 +225,31 @@ export default async function AdminBatchReviewPage({
           <PanelBody className="space-y-3">
             <ul className="space-y-2">
               {GATES.map((item) => {
-                const passed = gate[
-                  item.key === "nonB3Pass"
-                    ? "non_b3_pass"
-                    : item.key === "originExistsPass"
-                      ? "origin_exists_pass"
-                      : "origin_authentic_pass"
-                ];
+                const passed =
+                  gate[
+                    item.key === "nonB3Pass"
+                      ? "non_b3_pass"
+                      : item.key === "originExistsPass"
+                        ? "origin_exists_pass"
+                        : "origin_authentic_pass"
+                  ];
                 return (
-                  <li key={item.key} className="flex items-center justify-between gap-3">
+                  <li
+                    key={item.key}
+                    className="flex items-center justify-between gap-3"
+                  >
                     <span className="text-sm text-ink">{item.label}</span>
-                    <Badge tone={passed ? "ok" : "danger"}>{passed ? "Lolos" : "Gagal"}</Badge>
+                    <Badge tone={passed ? "ok" : "danger"}>
+                      {passed ? "Lolos" : "Gagal"}
+                    </Badge>
                   </li>
                 );
               })}
             </ul>
             {gate.notes ? (
-              <p className="border-t border-line pt-3 text-sm text-ink-muted">{gate.notes}</p>
+              <p className="border-t border-line pt-3 text-sm text-ink-muted">
+                {gate.notes}
+              </p>
             ) : null}
           </PanelBody>
         </Panel>
@@ -162,9 +258,20 @@ export default async function AdminBatchReviewPage({
       {grading && breakdown ? (
         <>
           <Panel>
-            <PanelHeader title="Hasil penilaian" description={`Versi rumus ${grading.scoring_version}`} />
+            <PanelHeader
+              title="Hasil penilaian"
+              description={`Versi rumus ${grading.scoring_version}`}
+            />
             <PanelBody className="space-y-5">
-              <GradeStamp grade={grading.grade} finalScore={grading.final_score} />
+              <GradeStamp
+                grade={grading.grade}
+                finalScore={grading.final_score}
+              />
+              <GradeMeaningTable
+                categoryName={batch.material_categories?.name ?? "—"}
+                meanings={batch.material_categories?.grade_meanings}
+                grade={grading.grade}
+              />
               <FinalScoreBreakdown breakdown={breakdown} />
             </PanelBody>
           </Panel>
@@ -184,6 +291,13 @@ export default async function AdminBatchReviewPage({
             />
             <PanelBody>
               <SubCriteriaDetail breakdown={breakdown} />
+              <div className="mt-4">
+                <QuantityDetail
+                  breakdown={breakdown}
+                  scoringVersion={grading.scoring_version}
+                  weighingMoistureNote={quantity?.weighing_moisture_note}
+                />
+              </div>
             </PanelBody>
           </Panel>
         </>
@@ -216,7 +330,9 @@ export default async function AdminBatchReviewPage({
                   />
                   <DataRow
                     label="Foto batch multi-sudut"
-                    value={documentation.has_multi_angle_photos ? "Ya" : "Tidak"}
+                    value={
+                      documentation.has_multi_angle_photos ? "Ya" : "Tidak"
+                    }
                   />
                   <DataRow
                     label="Nomor lot/traceability"
@@ -279,9 +395,19 @@ export default async function AdminBatchReviewPage({
           <PanelHeader title="Sertifikat terbit" />
           <PanelBody>
             <dl>
-              <DataRow label="Nomor sertifikat" value={certificate.certificate_code} mono />
-              <DataRow label="Terbit" value={formatDate(certificate.issued_at)} />
-              <DataRow label="Berlaku sampai" value={formatDate(certificate.valid_until)} />
+              <DataRow
+                label="Nomor sertifikat"
+                value={certificate.certificate_code}
+                mono
+              />
+              <DataRow
+                label="Terbit"
+                value={formatDate(certificate.issued_at)}
+              />
+              <DataRow
+                label="Berlaku sampai"
+                value={formatDate(certificate.valid_until)}
+              />
               <DataRow label="Status" value={certificate.status} />
             </dl>
           </PanelBody>

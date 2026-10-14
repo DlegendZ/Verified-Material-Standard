@@ -110,14 +110,14 @@ export async function assignGraderAction(
 }
 
 interface IssueContext {
+  status: string;
   batch_code: string;
   claimed_weight_kg: number;
   lot_number: string | null;
   production_date: string | null;
-  material_categories: {
-    name: string;
-    certificate_validity_days: number | null;
-  } | null;
+  declared_material_type: string | null;
+  material_form_profiles: { name: string } | null;
+  material_categories: import("@/lib/types/db").MaterialCategoryRow | null;
   factories: { legal_name: string; city: string } | null;
 }
 
@@ -158,11 +158,12 @@ export async function issueCertificateAction(
     const { data: batch } = await supabase
       .from("batches")
       .select(
-        "batch_code, claimed_weight_kg, lot_number, production_date, material_categories(name, certificate_validity_days), factories(legal_name, city)",
+        "status, batch_code, claimed_weight_kg, lot_number, production_date, declared_material_type, material_form_profiles(name), material_categories(*), factories(legal_name, city)",
       )
       .eq("id", batchId)
       .maybeSingle<IssueContext>();
     if (!batch) return { error: "Batch tidak ditemukan." };
+    if (batch.status !== "computed") return { error: ERRORS.issueNotAllowed };
 
     const issuedAt = new Date();
     const validityDays = batch.material_categories?.certificate_validity_days;
@@ -177,6 +178,12 @@ export async function issueCertificateAction(
       factoryName: batch.factories?.legal_name ?? "—",
       factoryCity: batch.factories?.city ?? "—",
       categoryName: batch.material_categories?.name ?? "—",
+      formProfileName: batch.material_form_profiles?.name,
+      declaredMaterialType: batch.declared_material_type,
+      gradeMeaning: batch.material_categories?.grade_meanings?.[grading.grade],
+      certificateValidityDays: validityDays,
+      claimBoundary: batch.material_categories?.claim_boundary,
+      thresholdDisclaimer: batch.material_categories?.threshold_disclaimer,
       batchCode: batch.batch_code,
       lotNumber: batch.lot_number,
       claimedWeightKg: Number(batch.claimed_weight_kg),

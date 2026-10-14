@@ -166,9 +166,28 @@ export function SubCriteriaDetail({
                   {contribution.label}
                 </span>
                 <span className="font-mono tabular text-ink-muted">
-                  {formatScore(contribution.rawScore)} ×{" "}
-                  {contribution.weightPct}% ={" "}
-                  {formatScore(contribution.contribution)}
+                  {contribution.rawScore === null ? (
+                    GRADER_TEXT.overrideEmpty
+                  ) : (
+                    <>
+                      {contribution.method === "unit_count" &&
+                      contribution.unitsChecked !== null &&
+                      contribution.unitsPassed !== null
+                        ? GRADER_TEXT.unitSummary(
+                            contribution.unitsPassed,
+                            contribution.unitsChecked,
+                            formatScore(contribution.passPct),
+                            formatScore(contribution.rawScore),
+                          )
+                        : formatScore(contribution.rawScore)}
+                      {contribution.measurementMethod
+                        ? ` (${contribution.measurementMethod === "moisture_meter" ? GRADER_TEXT.moistureMeter.toLowerCase() : GRADER_TEXT.touchEstimate.toLowerCase()})`
+                        : ""}
+                      {" × "}
+                      {contribution.weightPct}% ={" "}
+                      {formatScore(contribution.contribution)}
+                    </>
+                  )}
                 </span>
               </li>
             ))}

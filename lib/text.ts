@@ -208,6 +208,8 @@ export const ERRORS = {
     "Pabrik kamu belum diverifikasi Admin. Kamu masih bisa menyiapkan draft, tapi belum bisa mengajukan batch.",
   gradeDNotCertifiable:
     "Grade D tidak bisa diterbitkan sertifikatnya. Pabrik disarankan menyortir atau memproses ulang.",
+  issueNotAllowed:
+    "Sertifikat hanya bisa diterbitkan untuk batch yang penilaiannya selesai dan sedang menunggu penerbitan.",
   setupMissing:
     "Konfigurasi Supabase belum lengkap. Salin .env.example ke .env.local lalu isi nilainya.",
   validityNotSet:
@@ -417,6 +419,15 @@ export const GRADER_TEXT = {
   overrideEmpty: "tidak diisi (override bau)",
 } as const;
 export const CATEGORY_ADMIN_TEXT = {
+  title: "Kategori & bobot sub-kriteria",
+  active: "Aktif",
+  validity: "Masa berlaku sertifikat",
+  days: (days: number) => `${days} hari`,
+  profiles: "Profil bentuk",
+  odorCap: "Cap override bau",
+  noCategories: "Belum ada kategori aktif.",
+  methods: "Metode penilaian",
+  metadata: "Metadata kategori",
   description:
     "Bobot disimpan sebagai data, bukan konstanta di kode. Semua bobot masih draft kurasi dan belum divalidasi Domain Expert.",
   noCriteria:
@@ -425,6 +436,12 @@ export const CATEGORY_ADMIN_TEXT = {
   unitCount: "Hitung per unit",
   scale: "Skala 0–100",
   measurementRequired: "+ metode ukur wajib",
+} as const;
+
+export const CERTIFICATE_PDF_TEXT = {
+  footer:
+    "Penilaian berbasis sampling 3 titik (Atas, Tengah, Bawah) oleh grader VMS, bukan inspeksi 100% terhadap seluruh isi batch. Sertifikat menilai kondisi batch pada saat sampling. VMS tidak menjual material, tidak memegang transaksi, dan tidak menentukan harga.",
+  verify: "Cek status terkini di",
 } as const;
 
 export const GRADE_TABLE_TEXT = {

@@ -25,7 +25,12 @@ export function VerificationButtons({ factoryId }: { factoryId: string }) {
       <Button size="sm" onClick={() => run("verified")} disabled={pending}>
         Verifikasi
       </Button>
-      <Button size="sm" variant="outline" onClick={() => run("rejected")} disabled={pending}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => run("rejected")}
+        disabled={pending}
+      >
         Tolak
       </Button>
       {error ? (
