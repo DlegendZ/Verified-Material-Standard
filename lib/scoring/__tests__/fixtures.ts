@@ -1,63 +1,11 @@
-/** Fixture GS §10; konfigurasi sementara sebelum Fase 2. */
+import { findSeedCategory } from "@/lib/categories";
 import type {
   CategoryConfig,
   GradingInput,
   SamplePointInput,
   SamplingProfile,
-  SubCriterionConfig,
 } from "../types";
-const sub = (
-  criterion: SubCriterionConfig["criterion"],
-  subKey: string,
-  label: string,
-  weightPct: number,
-  extra: Partial<SubCriterionConfig> = {},
-): SubCriterionConfig => ({
-  criterion,
-  subKey,
-  label,
-  weightPct,
-  isOdor: false,
-  odorOverrideCap: null,
-  scoringMethod: "scale",
-  requiresMeasurementMethod: false,
-  ...extra,
-});
-export const SOLID_WOOD: CategoryConfig = {
-  code: "solid_wood",
-  name: "Kayu Solid",
-  criteria: [
-    sub("purity", "species_match", "Jenis kayu sesuai deklarasi", 70),
-    sub(
-      "purity",
-      "uniformity",
-      "Keseragaman jenis & ukuran dalam 1 titik sampel",
-      30,
-    ),
-    sub("cleanliness", "biological_damage", "Kerusakan biologis", 30, {
-      scoringMethod: "unit_count",
-    }),
-    sub(
-      "cleanliness",
-      "foreign_contaminant",
-      "Kontaminan benda asing (paku/sekrup tertanam)",
-      25,
-      { scoringMethod: "unit_count" },
-    ),
-    sub("cleanliness", "moisture", "Kadar kelembapan", 15, {
-      requiresMeasurementMethod: true,
-    }),
-    sub("cleanliness", "physical_defect", "Cacat fisik", 10, {
-      scoringMethod: "unit_count",
-    }),
-    sub("cleanliness", "odor", "Bau", 20, {
-      isOdor: true,
-      odorOverrideCap: 40,
-    }),
-    sub("quantity_accuracy", "weight_accuracy", "Akurasi kuantitas", 60),
-    sub("quantity_accuracy", "spec_accuracy", "Akurasi dimensi", 40),
-  ],
-};
+export const SOLID_WOOD = findSeedCategory("solid_wood");
 export const BUNDLE_PROFILE: SamplingProfile = {
   code: "bundled_sticks",
   unitsPerPoint: 10,
