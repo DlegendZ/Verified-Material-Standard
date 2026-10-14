@@ -344,6 +344,44 @@ export const BATCH_FORM_TEXT = {
   profileExample: "UD Mebel Contoh",
 } as const;
 export const GRADER_TEXT = {
+  claimedCount: (count: number) => `Klaim pabrik: ${count}`,
+  countClaim: "Klaim",
+  countObserved: "Aktual",
+  deviation: "Selisih",
+  applied: "Dipakai",
+  quantityScore: "Skor akurasi kuantitas",
+  dimensionScore: "Skor akurasi dimensi",
+  decrease: (label: string) => `Kurangi unit lolos ${label}`,
+  increase: (label: string) => `Tambah unit lolos ${label}`,
+  pointPhoto: "Ambil / unggah foto titik ini",
+  documentationHint:
+    "Empat item, masing-masing 25 poin. Centang yang benar-benar ada pada batch ini.",
+  overrideNotice: (cap: number) =>
+    `Bau Level 3: kebersihan titik ditetapkan ${cap}. Isian kebersihan lain tidak wajib dan tidak ikut dihitung.`,
+  scoreTitle: "Kenapa skornya sekian",
+  pointScoreTitle: "Skor per titik",
+  photoTitle: (point: string) => `Foto titik ${point}`,
+  speciesPurity: "Kemurnian/Komposisi",
+  cleanliness: "Kebersihan & Kontaminasi",
+  documentationItems: [
+    { key: "hasProductionDate", label: "Tanggal produksi tercantum" },
+    { key: "hasMultiAnglePhotos", label: "Foto batch multi-sudut" },
+    { key: "hasLotNumber", label: "Nomor lot / traceability" },
+    { key: "hasLabTest", label: "Hasil uji tambahan (mis. uji lab)" },
+  ],
+  countChecksRequired:
+    "Isi jumlah batang di ikat Atas, Tengah, dan Bawah masing-masing tepat satu kali.",
+  gateNotes: "Catatan",
+  gateNotesHint:
+    "Wajib diisi minimal 10 karakter bila ada gate yang tidak lolos.",
+  gateSave: "Simpan hasil gerbang wajib",
+  gateSaving: "Menyimpan…",
+  gateReminder:
+    "Centang hanya gate yang benar-benar lolos. Gate yang gagal menghentikan proses — tidak ada skor, tidak ada grade, dan tidak ada sertifikat untuk batch ini.",
+  gateNotAllowed:
+    "Hasil gerbang tidak bisa diubah karena batch sudah masuk penilaian atau hasilnya sudah terkirim.",
+  incompletePoint: "belum lengkap",
+  completePoint: "lengkap",
   steps: ["Sampling", "Kuantitas", "Dokumentasi", "Pratinjau"],
   samplingGuide: "Panduan sampling",
   inspect: (count: number, unit: string) =>

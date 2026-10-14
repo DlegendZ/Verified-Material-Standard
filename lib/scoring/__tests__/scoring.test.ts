@@ -362,6 +362,11 @@ describe("kuantitas", () => {
   });
 });
 describe("aturan generik & validasi konfigurasi", () => {
+  it("konfigurasi lama tanpa metode memakai skala", () => {
+    const legacy = structuredClone(SOLID_WOOD);
+    delete (legacy.criteria[0] as Partial<SubCriterionConfig>).scoringMethod;
+    expect(computeSamplePoint(legacy, flatPoints()[0]).purity).toBe(100);
+  });
   const point = (purity: number, cleanliness: number) => ({
     point: "top" as const,
     odorLevel: 1 as const,

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { GRADER_TEXT } from "@/lib/text";
 
 /**
  * Slider dan input angka berdampingan (SRD Bab 6.3) — slider untuk cepat,
@@ -20,12 +21,16 @@ export function ScoreInput({
   label: string;
   hint?: string;
   weightPct?: number;
-  value: number;
-  onChange: (value: number) => void;
+  value: number | undefined;
+  onChange: (value: number | undefined) => void;
   disabled?: boolean;
   className?: string;
 }) {
   function handle(raw: string) {
+    if (raw.trim() === "") {
+      onChange(undefined);
+      return;
+    }
     const parsed = Number(raw);
     if (!Number.isFinite(parsed)) return;
     onChange(Math.max(0, Math.min(100, parsed)));
@@ -52,7 +57,7 @@ export function ScoreInput({
           min={0}
           max={100}
           step={1}
-          value={value}
+          value={value ?? 0}
           disabled={disabled}
           onChange={(event) => handle(event.target.value)}
           aria-label={`${label} (slider)`}
@@ -64,12 +69,15 @@ export function ScoreInput({
           min={0}
           max={100}
           step={1}
-          value={value}
+          value={value ?? ""}
           disabled={disabled}
           onChange={(event) => handle(event.target.value)}
           className="h-11 w-20 rounded-[3px] border border-line-strong bg-surface px-2 text-right font-mono tabular text-ink"
         />
       </div>
+      {value === undefined ? (
+        <p className="mt-1 text-xs text-ink-muted">{GRADER_TEXT.notFilled}</p>
+      ) : null}
     </div>
   );
 }

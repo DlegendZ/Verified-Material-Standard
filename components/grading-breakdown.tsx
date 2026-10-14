@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScoreBar } from "@/components/ui/score-bar";
 import { formatScore } from "@/lib/format";
 import { normalizeBreakdown } from "@/lib/breakdown";
-import { SAMPLE_POINT_LABELS } from "@/lib/text";
+import { SAMPLE_POINT_LABELS, GRADER_TEXT } from "@/lib/text";
 
 /** Rincian lima kriteria beserta bobot dan kontribusinya ke skor akhir. */
 export function FinalScoreBreakdown({
@@ -175,6 +175,73 @@ export function SubCriteriaDetail({
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+export function QuantityDetail({
+  breakdown: raw,
+  scoringVersion = "2.0.0",
+  weighingMoistureNote,
+}: {
+  breakdown: unknown;
+  scoringVersion?: string;
+  weighingMoistureNote?: string | null;
+}) {
+  const { quantity } = normalizeBreakdown(raw, scoringVersion);
+  return (
+    <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-3">
+      <h3 className="text-sm font-semibold text-ink">
+        {GRADER_TEXT.quantityDetail}
+      </h3>
+      <dl className="space-y-2 text-sm text-ink">
+        <div className="flex flex-wrap justify-between gap-2">
+          <dt>{GRADER_TEXT.weightDeviation}</dt>
+          <dd>{formatScore(quantity.weightDeviationPct)}%</dd>
+        </div>
+        {quantity.countChecks.map((c) => (
+          <div
+            key={c.key}
+            className="space-y-1 rounded-lg border border-line p-2"
+          >
+            <dt className="font-medium">{c.label}</dt>
+            <dd className="text-ink-muted">
+              {GRADER_TEXT.countClaim} {c.claimed} · {GRADER_TEXT.countObserved}{" "}
+              {c.observed} · {GRADER_TEXT.deviation}{" "}
+              {formatScore(c.deviationPct)}%{" "}
+              {quantity.deviationSource === c.key
+                ? `· ${GRADER_TEXT.applied}`
+                : ""}
+            </dd>
+          </div>
+        ))}
+        <div className="flex flex-wrap justify-between gap-2 font-semibold">
+          <dt>{GRADER_TEXT.maxDeviation}</dt>
+          <dd>
+            {formatScore(quantity.deviationPct)}% →{" "}
+            {formatScore(quantity.weightScore)}
+          </dd>
+        </div>
+        {quantity.specUnitsChecked !== null ? (
+          <div className="flex flex-wrap justify-between gap-2">
+            <dt>{GRADER_TEXT.dimensionUnits}</dt>
+            <dd>
+              {quantity.specUnitsPassed}/{quantity.specUnitsChecked} (
+              {formatScore(quantity.specMatchPct)}%) →{" "}
+              {formatScore(quantity.specScore)}
+            </dd>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap justify-between gap-2">
+          <dt>{GRADER_TEXT.quantityScore}</dt>
+          <dd>{formatScore(quantity.score)}</dd>
+        </div>
+      </dl>
+      {weighingMoistureNote ? (
+        <p className="text-sm text-ink-muted">
+          {GRADER_TEXT.weighingMoistureNote}: {weighingMoistureNote}
+        </p>
+      ) : null}
     </div>
   );
 }

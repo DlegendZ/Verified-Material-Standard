@@ -6,11 +6,6 @@ import { z } from "zod";
  * tampil di form.
  */
 
-const scoreField = z
-  .number({ message: "Skor wajib diisi" })
-  .min(0, "Skor minimal 0")
-  .max(100, "Skor maksimal 100");
-
 export const signInSchema = z.object({
   email: z.email("Format email tidak valid"),
   password: z.string().min(6, "Kata sandi minimal 6 karakter"),
@@ -63,32 +58,6 @@ export const gateCheckSchema = z
   );
 export type GateCheckInput = z.infer<typeof gateCheckSchema>;
 
-export const legacySamplePointSchema = z.object({
-  point: z.enum(["top", "middle", "bottom"]),
-  odorLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-  notes: z.string().max(500).optional().or(z.literal("")),
-  /** subKey → skor mentah 0-100 untuk sub-kriteria purity & cleanliness. */
-  scores: z.record(z.string(), scoreField),
-});
-export type LegacySamplePointFormInput = z.infer<
-  typeof legacySamplePointSchema
->;
-
-export const legacyQuantityCheckSchema = z.object({
-  actualWeightKg: z
-    .number({ message: "Berat timbang ulang wajib diisi" })
-    .min(0, "Berat tidak boleh negatif")
-    .max(1_000_000),
-  specMatchPct: z
-    .number({ message: "Persentase kesesuaian wajib diisi" })
-    .min(0, "Minimal 0%")
-    .max(100, "Maksimal 100%"),
-  notes: z.string().max(500).optional().or(z.literal("")),
-});
-export type LegacyQuantityCheckInput = z.infer<
-  typeof legacyQuantityCheckSchema
->;
-
 export const documentationCheckSchema = z.object({
   hasProductionDate: z.boolean(),
   hasMultiAnglePhotos: z.boolean(),
@@ -98,17 +67,6 @@ export const documentationCheckSchema = z.object({
 export type DocumentationCheckInput = z.infer<typeof documentationCheckSchema>;
 
 /** Payload submit grading dari wizard grader. */
-export const legacyGradingSubmitSchema = z.object({
-  batchId: z.uuid(),
-  samplePoints: z
-    .array(legacySamplePointSchema)
-    .length(3, "Wajib tepat 3 titik sampel"),
-  quantity: legacyQuantityCheckSchema,
-  documentation: documentationCheckSchema,
-});
-export type LegacyGradingSubmitInput = z.infer<
-  typeof legacyGradingSubmitSchema
->;
 
 /**
  * Perubahan bobot sub-kriteria oleh Admin.

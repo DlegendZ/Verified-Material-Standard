@@ -1,26 +1,35 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { toCategoryConfig } from "@/lib/category-config";
+import { canonicalCountChecks } from "@/lib/grading-input";
+import { toCategoryConfig, toFormProfile } from "@/lib/category-config";
 import { writeAudit } from "@/lib/audit";
-import {
-  ScoringError,
-  computeGrading,
-  type GradingInput,
-  type SamplePointInput,
-} from "@/lib/scoring";
+import { ScoringError, computeGrading } from "@/lib/scoring";
 import {
   AuthorizationError,
   createSupabaseServerClient,
   requireRole,
 } from "@/lib/supabase/server";
-import { ERRORS } from "@/lib/text";
-import type { CategoryCriterionRow, SamplePointDb } from "@/lib/types/db";
+import { ERRORS, GRADER_TEXT, REVISION_TEXT } from "@/lib/text";
+import type {
+  CategoryCriterionRow,
+  SamplePointDb,
+  GateCheckRow,
+  BatchRow,
+  MaterialCategoryRow,
+  MaterialFormProfileRow,
+} from "@/lib/types/db";
 import {
   gateCheckSchema,
-  legacyGradingSubmitSchema as gradingSubmitSchema,
+  gradingSubmitSchema,
+  nonB3FindingSchema,
+  claimedSpecDetailSchema,
 } from "@/lib/validation/schemas";
 
+interface GradingContext extends BatchRow {
+  material_categories: MaterialCategoryRow | null;
+  material_form_profiles: MaterialFormProfileRow | null;
+}
 export interface ActionState {
   error?: string;
   fieldErrors?: Record<string, string>;
@@ -58,6 +67,14 @@ export async function saveGateCheckAction(
 ): Promise<ActionState> {
   try {
     const { user, supabase, assignmentId } = await requireAssignment(batchId);
+
+    const { data: gateBatch } = await supabase
+      .from("batches")
+      .select("status")
+      .eq("id", batchId)
+      .maybeSingle<{ status: string }>();
+    if (!gateBatch || !["assigned", "gate_check"].includes(gateBatch.status))
+      return { error: GRADER_TEXT.gateNotAllowed };
 
     const parsed = gateCheckSchema.safeParse({
       nonB3Pass: formData.get("nonB3Pass") === "on",
@@ -127,119 +144,139 @@ export async function saveGateCheckAction(
  * supaya sertifikat lama tidak berubah bila rumus diubah kemudian
  * (SRD Bab 4.3).
  */
+/** Hasil akhir dihitung ulang di server dari klaim DB dan profil sampling. */
 export async function submitGradingAction(
   input: unknown,
 ): Promise<ActionState> {
   try {
     const parsed = gradingSubmitSchema.safeParse(input);
-    if (!parsed.success) {
+    if (!parsed.success)
       return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
-    }
-
-    const { batchId, samplePoints, quantity, documentation } = parsed.data;
+    const { batchId, samplePoints, quantity, documentation, nonB3Reconfirmed } =
+      parsed.data;
     const { user, supabase, assignmentId } = await requireAssignment(batchId);
-
-    const { data: batch } = await supabase
-      .from("batches")
-      .select(
-        "id, claimed_weight_kg, category_id, status, material_categories(code, name)",
-      )
-      .eq("id", batchId)
-      .maybeSingle<{
-        id: string;
-        claimed_weight_kg: number;
-        category_id: string;
-        status: string;
-        material_categories: { code: string; name: string } | null;
-      }>();
-    if (!batch) return { error: "Batch tidak ditemukan." };
-    if (batch.status === "rejected_gate") {
-      return {
-        error:
-          "Batch ini gagal di gerbang wajib, penilaian tidak bisa dilanjutkan.",
-      };
-    }
-
-    const { data: criteriaRows } = await supabase
+    const [
+      { data: batch },
+      { data: gate },
+      { data: previous, error: previousError },
+    ] = await Promise.all([
+      supabase
+        .from("batches")
+        .select("*, material_categories(*), material_form_profiles(*)")
+        .eq("id", batchId)
+        .maybeSingle<GradingContext>(),
+      supabase
+        .from("gate_checks")
+        .select("*")
+        .eq("batch_id", batchId)
+        .maybeSingle<GateCheckRow>(),
+      supabase
+        .from("grading_results")
+        .select("id")
+        .eq("batch_id", batchId)
+        .limit(1)
+        .maybeSingle<{ id: string }>(),
+    ]);
+    if (previousError) return { error: ERRORS.generic };
+    if (
+      !batch ||
+      batch.status !== "grading" ||
+      previous ||
+      !gate?.non_b3_pass ||
+      !gate.origin_exists_pass ||
+      !gate.origin_authentic_pass
+    )
+      return { error: ERRORS.gradingNotAllowed };
+    const profile = batch.material_form_profiles;
+    if (
+      !profile ||
+      profile.category_id !== batch.category_id ||
+      !profile.is_active ||
+      !batch.material_categories?.is_active ||
+      batch.material_categories.status !== "live"
+    )
+      return { error: ERRORS.profileMismatch };
+    const claim = claimedSpecDetailSchema.safeParse(batch.claimed_spec_detail);
+    if (!claim.success || claim.data.claimMode !== profile.claim_mode)
+      return { error: ERRORS.profileMismatch };
+    const { data: criteriaRows, error: criteriaError } = await supabase
       .from("category_criteria")
       .select("*")
       .eq("category_id", batch.category_id)
-      .order("sort_order", { ascending: true })
+      .order("sort_order")
       .returns<CategoryCriterionRow[]>();
-
-    const category = toCategoryConfig(
-      batch.material_categories ?? { code: "unknown", name: "—" },
-      criteriaRows ?? [],
-    );
-
-    const gradingInput: GradingInput = {
-      category,
-      samplePoints: samplePoints.map<SamplePointInput>((point) => ({
-        point: point.point,
-        odorLevel: point.odorLevel,
-        scores: point.scores,
-      })),
+    if (criteriaError) return { error: ERRORS.generic };
+    const countChecks = canonicalCountChecks(claim.data, quantity.countChecks);
+    const result = computeGrading({
+      category: toCategoryConfig(batch.material_categories, criteriaRows ?? []),
+      samplingProfile: toFormProfile(profile),
+      samplePoints,
       quantity: {
         claimedWeightKg: Number(batch.claimed_weight_kg),
         actualWeightKg: quantity.actualWeightKg,
-        specMatchPct: quantity.specMatchPct,
+        countChecks,
+        specUnits: {
+          passed: quantity.specUnitsPassed,
+          checked: quantity.specUnitsChecked,
+        },
       },
       documentation,
-    };
-
-    let result;
-    try {
-      result = computeGrading(gradingInput);
-    } catch (error) {
-      if (error instanceof ScoringError) return { error: error.message };
-      throw error;
-    }
-
-    // Titik sampel ditulis ulang supaya submit berulang tidak menumpuk baris.
-    await supabase.from("sample_points").delete().eq("batch_id", batchId);
-
+    });
+    const { error: deleteError } = await supabase
+      .from("sample_points")
+      .delete()
+      .eq("batch_id", batchId);
+    if (deleteError) return { error: deleteError.message };
     for (const point of samplePoints) {
-      const { data: inserted, error: pointError } = await supabase
+      const { data: inserted, error } = await supabase
         .from("sample_points")
         .insert({
           batch_id: batchId,
-          point: point.point as SamplePointDb,
+          point: point.point,
           odor_level: point.odorLevel,
           notes: point.notes || null,
         })
         .select("id")
         .single<{ id: string }>();
-      if (pointError || !inserted)
-        return { error: pointError?.message ?? ERRORS.generic };
-
-      const scoreRows = (criteriaRows ?? [])
-        .filter((row) => row.criterion !== "quantity_accuracy")
-        .map((row) => ({
+      if (error || !inserted)
+        return { error: error?.message ?? ERRORS.generic };
+      const contributions = result.breakdown.samplePoints.find(
+        (p) => p.point === point.point,
+      )!.contributions;
+      const scores = contributions
+        .filter((s) => s.rawScore !== null)
+        .map((s) => ({
           sample_point_id: inserted.id,
-          criterion: row.criterion,
-          sub_key: row.sub_key,
-          raw_score: point.scores[row.sub_key] ?? 0,
+          criterion: s.criterion,
+          sub_key: s.subKey,
+          raw_score: s.rawScore,
+          units_checked: s.unitsChecked,
+          units_passed: s.unitsPassed,
+          measurement_method: s.measurementMethod,
         }));
-
-      const { error: scoreError } = await supabase
-        .from("sample_scores")
-        .insert(scoreRows);
-      if (scoreError) return { error: scoreError.message };
+      if (scores.length) {
+        const { error: scoreError } = await supabase
+          .from("sample_scores")
+          .insert(scores);
+        if (scoreError) return { error: scoreError.message };
+      }
     }
-
     const { error: quantityError } = await supabase
       .from("quantity_checks")
       .upsert(
         {
           batch_id: batchId,
           actual_weight_kg: quantity.actualWeightKg,
-          spec_match_pct: quantity.specMatchPct,
+          spec_match_pct: result.breakdown.quantity.specMatchPct ?? 0,
+          count_checks: countChecks,
+          spec_units_checked: quantity.specUnitsChecked,
+          spec_units_passed: quantity.specUnitsPassed,
+          weighing_moisture_note: quantity.weighingMoistureNote || null,
           notes: quantity.notes || null,
         },
         { onConflict: "batch_id" },
       );
     if (quantityError) return { error: quantityError.message };
-
     const { error: docError } = await supabase
       .from("documentation_checks")
       .upsert(
@@ -253,8 +290,15 @@ export async function submitGradingAction(
         { onConflict: "batch_id" },
       );
     if (docError) return { error: docError.message };
-
-    // grading_results append-only: regrading membuat baris baru, tidak menimpa.
+    // Periksa status lagi sebelum append hasil: temuan Non-B3 menghentikan submit.
+    const { data: claimed, error: claimError } = await supabase
+      .from("batches")
+      .update({ status: "computed" })
+      .eq("id", batchId)
+      .eq("status", "grading")
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (claimError || !claimed) return { error: ERRORS.gradingNotAllowed };
     const { error: resultError } = await supabase
       .from("grading_results")
       .insert({
@@ -270,17 +314,19 @@ export async function submitGradingAction(
         scoring_version: result.scoringVersion,
         submitted_by: user.id,
       });
-    if (resultError) return { error: resultError.message };
-
-    await supabase
-      .from("batches")
-      .update({ status: "computed" })
-      .eq("id", batchId);
-    await supabase
+    if (resultError) {
+      await supabase
+        .from("batches")
+        .update({ status: "grading" })
+        .eq("id", batchId)
+        .eq("status", "computed");
+      return { error: resultError.message };
+    }
+    const { error: assignmentError } = await supabase
       .from("assignments")
       .update({ status: "submitted" })
       .eq("id", assignmentId);
-
+    if (assignmentError) return { error: assignmentError.message };
     await writeAudit(supabase, {
       actorId: user.id,
       action: "grading.submitted",
@@ -290,11 +336,114 @@ export async function submitGradingAction(
         final_score: result.finalScore,
         grade: result.grade,
         scoring_version: result.scoringVersion,
+        nonB3Reconfirmed,
       },
     });
-
     revalidatePath("/grader");
     revalidatePath(`/grader/batches/${batchId}`);
+    revalidatePath(`/factory/batches/${batchId}`);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof ScoringError)
+      return { error: error.message };
+    throw error;
+  }
+}
+
+/** P12/A35: kontaminasi kimia yang baru ditemukan tetap gagal gerbang. */
+export async function rejectNonB3FindingAction(
+  batchId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const { user, supabase, assignmentId } = await requireAssignment(batchId);
+    const parsed = nonB3FindingSchema.safeParse({
+      notes: String(formData.get("notes") ?? ""),
+    });
+    if (!parsed.success)
+      return {
+        fieldErrors: {
+          notes: parsed.error.issues[0]?.message ?? ERRORS.generic,
+        },
+      };
+    const [
+      { data: batch },
+      { data: previous, error: previousError },
+      { data: gate },
+    ] = await Promise.all([
+      supabase
+        .from("batches")
+        .select("status")
+        .eq("id", batchId)
+        .maybeSingle<{ status: string }>(),
+      supabase
+        .from("grading_results")
+        .select("id")
+        .eq("batch_id", batchId)
+        .limit(1)
+        .maybeSingle<{ id: string }>(),
+      supabase
+        .from("gate_checks")
+        .select("*")
+        .eq("batch_id", batchId)
+        .maybeSingle<GateCheckRow>(),
+    ]);
+    if (previousError) return { error: ERRORS.generic };
+    if (batch?.status !== "grading" || previous || !gate)
+      return { error: REVISION_TEXT.nonB3FindingNotAllowed };
+    const { data: changed, error: statusError } = await supabase
+      .from("batches")
+      .update({ status: "rejected_gate" })
+      .eq("id", batchId)
+      .eq("status", "grading")
+      .select("id")
+      .maybeSingle<{ id: string }>();
+    if (statusError || !changed)
+      return { error: REVISION_TEXT.nonB3FindingNotAllowed };
+    const { error: gateError } = await supabase
+      .from("gate_checks")
+      .upsert(
+        {
+          batch_id: batchId,
+          non_b3_pass: false,
+          origin_exists_pass: gate.origin_exists_pass,
+          origin_authentic_pass: gate.origin_authentic_pass,
+          notes: [
+            gate.notes,
+            `${REVISION_TEXT.findingAuditPrefix} ${parsed.data.notes}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          checked_by: user.id,
+          checked_at: new Date().toISOString(),
+        },
+        { onConflict: "batch_id" },
+      );
+    if (gateError) {
+      await supabase
+        .from("batches")
+        .update({ status: "grading" })
+        .eq("id", batchId)
+        .eq("status", "rejected_gate");
+      return { error: gateError.message };
+    }
+    const { error: assignmentError } = await supabase
+      .from("assignments")
+      .update({ status: "submitted" })
+      .eq("id", assignmentId);
+    if (assignmentError) return { error: assignmentError.message };
+    await writeAudit(supabase, {
+      actorId: user.id,
+      action: "batch.gate_rejected_late",
+      entityType: "batch",
+      entityId: batchId,
+      payload: { notes: parsed.data.notes },
+    });
+    revalidatePath("/grader");
+    revalidatePath(`/grader/batches/${batchId}`);
+    revalidatePath("/factory");
+    revalidatePath(`/factory/batches/${batchId}`);
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthorizationError) return { error: error.message };

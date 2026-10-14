@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
+import { SamplingGuide } from "@/components/sampling-guide";
 import {
   ConsistencyNote,
   FinalScoreBreakdown,
@@ -13,20 +14,22 @@ import { GradingWizard } from "./wizard";
 import { attachSamplePhotoAction } from "../../actions";
 import { toCategoryConfig } from "@/lib/category-config";
 import { formatDate, formatWeight } from "@/lib/format";
-import type { GradingResult } from "@/lib/scoring";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
-import { BATCH_STATUS_HINT } from "@/lib/text";
+import { BATCH_STATUS_HINT, ERRORS } from "@/lib/text";
 import type {
   BatchRow,
   CategoryCriterionRow,
   GateCheckRow,
   GradingResultRow,
+  MaterialCategoryRow,
+  MaterialFormProfileRow,
 } from "@/lib/types/db";
 
 export const metadata = { title: "Penilaian batch" };
 
 interface GraderBatch extends BatchRow {
-  material_categories: { code: string; name: string } | null;
+  material_categories: MaterialCategoryRow | null;
+  material_form_profiles: MaterialFormProfileRow | null;
   factories: {
     legal_name: string;
     city: string;
@@ -55,7 +58,7 @@ export default async function GraderBatchPage({
   const { data: batch } = await supabase
     .from("batches")
     .select(
-      "*, material_categories(code, name), factories(legal_name, city, address, contact_person)",
+      "*, material_categories(*), material_form_profiles(*), factories(legal_name, city, address, contact_person)",
     )
     .eq("id", id)
     .maybeSingle<GraderBatch>();
@@ -131,6 +134,15 @@ export default async function GraderBatchPage({
         </PanelBody>
       </Panel>
 
+      <SamplingGuide
+        categoryName={category.name}
+        profile={batch.material_form_profiles}
+        claimedSpec={batch.claimed_spec}
+        thresholdDisclaimer={
+          batch.material_categories?.threshold_disclaimer ?? null
+        }
+      />
+
       {batch.status === "rejected_gate" ? (
         <Panel className="border-danger">
           <PanelHeader
@@ -155,13 +167,16 @@ export default async function GraderBatchPage({
               finalScore={grading.final_score}
             />
             <FinalScoreBreakdown
-              breakdown={grading.breakdown_json as GradingResult["breakdown"]}
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
             />
             <SamplePointTable
-              breakdown={grading.breakdown_json as GradingResult["breakdown"]}
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
             />
             <ConsistencyNote
-              breakdown={grading.breakdown_json as GradingResult["breakdown"]}
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
             />
           </PanelBody>
         </Panel>
@@ -172,13 +187,20 @@ export default async function GraderBatchPage({
             description="Tiga pemeriksaan pass/fail sebelum skoring dibuka."
           />
           <PanelBody>
-            <GateForm batchId={batch.id} />
+            <GateForm
+              batchId={batch.id}
+              nonB3Extra={batch.material_categories?.non_b3_extra}
+            />
           </PanelBody>
         </Panel>
-      ) : (
+      ) : batch.material_form_profiles && batch.claimed_spec_detail ? (
         <GradingWizard
           batchId={batch.id}
           category={category}
+          profile={batch.material_form_profiles}
+          claimedSpecDetail={batch.claimed_spec_detail}
+          gradeMeanings={batch.material_categories?.grade_meanings ?? null}
+          odorLevel3Hint={batch.material_categories?.odor_level3_hint ?? null}
           claimedWeightKg={Number(batch.claimed_weight_kg)}
           documentationDefaults={{
             hasProductionDate: Boolean(batch.production_date),
@@ -192,6 +214,10 @@ export default async function GraderBatchPage({
             bottom: attachSamplePhotoAction.bind(null, batch.id, "bottom"),
           }}
         />
+      ) : (
+        <p role="alert" className="text-danger">
+          {ERRORS.profileRequired}
+        </p>
       )}
     </div>
   );

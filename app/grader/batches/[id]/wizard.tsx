@@ -1,13 +1,20 @@
 "use client";
-
+import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { CopyButton } from "@/components/copy-button";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from "react";
 import { FileUploader } from "@/components/file-uploader";
+import { GradeMeaningTable } from "@/components/grade-meaning-table";
 import {
   ConsistencyNote,
   FinalScoreBreakdown,
   SamplePointTable,
+  QuantityDetail,
 } from "@/components/grading-breakdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,441 +22,611 @@ import { Checkbox, Field, Input, Textarea } from "@/components/ui/field";
 import { GradeStamp } from "@/components/ui/grade";
 import { Panel, PanelBody } from "@/components/ui/panel";
 import { ScoreInput } from "@/components/ui/score-input";
+import { UnitCountInput } from "@/components/ui/unit-count-input";
 import { Steps } from "@/components/ui/steps";
-import { submitGradingAction, type ActionState } from "../../actions";
-import { ScoringError, computeGrading, type CategoryConfig, type GradingResult } from "@/lib/scoring";
-import { formatWeight } from "@/lib/format";
+import {
+  rejectNonB3FindingAction,
+  submitGradingAction,
+  type ActionState,
+} from "../../actions";
+import {
+  ScoringError,
+  computeGrading,
+  computeQuantity,
+  computeSamplePoint,
+  odorOverrideCapOf,
+  type CategoryConfig,
+  type DocumentationInput,
+  type GradingResult,
+  type MeasurementMethod,
+  type SamplePointInput,
+} from "@/lib/scoring";
+import { canonicalCountChecks } from "@/lib/grading-input";
+import { toFormProfile } from "@/lib/category-config";
+import { toNumber, type ClaimedSpecDetail } from "@/lib/validation/schemas";
 import { BUCKETS } from "@/lib/storage";
-import { ODOR_LEVELS, SAMPLE_POINT_LABELS } from "@/lib/text";
-import type { SamplePointDb } from "@/lib/types/db";
-
-const POINTS: SamplePointDb[] = ["top", "middle", "bottom"];
-const STEP_LABELS = ["Sampling", "Kuantitas", "Dokumentasi", "Pratinjau"];
-
-interface PointDraft {
-  odorLevel: 1 | 2 | 3;
-  notes: string;
-  scores: Record<string, number>;
-}
-
-interface Draft {
-  points: Record<SamplePointDb, PointDraft>;
-  actualWeightKg: string;
-  specMatchPct: string;
-  quantityNotes: string;
-  documentation: {
-    hasProductionDate: boolean;
-    hasMultiAnglePhotos: boolean;
-    hasLotNumber: boolean;
-    hasLabTest: boolean;
-  };
-}
-
-function emptyDraft(category: CategoryConfig, defaults: Draft["documentation"]): Draft {
-  const scores = Object.fromEntries(
-    category.criteria
-      .filter((c) => c.criterion !== "quantity_accuracy")
-      .map((c) => [c.subKey, 70]),
-  );
-
+import {
+  ACTIONS,
+  GRADER_TEXT,
+  ODOR_LEVELS,
+  REVISION_TEXT,
+  SAMPLE_POINT_LABELS,
+} from "@/lib/text";
+import type {
+  GradeDb,
+  MaterialFormProfileRow,
+  SamplePointDb,
+} from "@/lib/types/db";
+const POINTS = ["top", "middle", "bottom"] as const;
+const pointDraftSchema = z.object({
+  odorLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  notes: z.string(),
+  scores: z.record(z.string(), z.number().min(0).max(100)),
+  unitsPassed: z.record(z.string(), z.string()),
+  measurementMethods: z.record(
+    z.string(),
+    z.enum(["moisture_meter", "touch_estimate"]),
+  ),
+});
+const draftSchema = z.object({
+  points: z.object({
+    top: pointDraftSchema,
+    middle: pointDraftSchema,
+    bottom: pointDraftSchema,
+  }),
+  actualWeightKg: z.string(),
+  counts: z.record(z.string(), z.string()),
+  specUnitsPassed: z.string(),
+  specUnitsChecked: z.string(),
+  weighingMoistureNote: z.string(),
+  quantityNotes: z.string(),
+  documentation: z.object({
+    hasProductionDate: z.boolean(),
+    hasMultiAnglePhotos: z.boolean(),
+    hasLotNumber: z.boolean(),
+    hasLabTest: z.boolean(),
+  }),
+});
+type Draft = z.infer<typeof draftSchema>;
+type PointDraft = z.infer<typeof pointDraftSchema>;
+function emptyDraft(
+  profile: MaterialFormProfileRow,
+  documentation: DocumentationInput,
+): Draft {
+  const point = (): PointDraft => ({
+    odorLevel: 1,
+    notes: "",
+    scores: {},
+    unitsPassed: {},
+    measurementMethods: {},
+  });
   return {
-    points: {
-      top: { odorLevel: 1, notes: "", scores: { ...scores } },
-      middle: { odorLevel: 1, notes: "", scores: { ...scores } },
-      bottom: { odorLevel: 1, notes: "", scores: { ...scores } },
-    },
+    points: { top: point(), middle: point(), bottom: point() },
     actualWeightKg: "",
-    specMatchPct: "",
+    counts: {},
+    specUnitsPassed: "",
+    specUnitsChecked: String(profile.units_per_point * 3),
+    weighingMoistureNote: "",
     quantityNotes: "",
-    documentation: defaults,
+    documentation,
   };
 }
-
-/**
- * Wizard penilaian grader.
- *
- * Draft disimpan ke localStorage setiap perubahan — grader bekerja di lapangan
- * dengan sinyal buruk, dan kehilangan isian berarti mengulang seluruh sampling
- * (SRD Bab 6.3).
- *
- * Pratinjau memakai scoring engine yang sama persis dengan yang dipakai server,
- * bukan perkiraan terpisah. Engine murni tanpa I/O, jadi aman dijalankan di
- * browser.
- */
 export function GradingWizard({
   batchId,
   category,
+  profile,
   claimedWeightKg,
+  claimedSpecDetail,
+  gradeMeanings,
+  odorLevel3Hint,
   documentationDefaults,
   photoActions,
 }: {
   batchId: string;
   category: CategoryConfig;
+  profile: MaterialFormProfileRow;
   claimedWeightKg: number;
-  documentationDefaults: Draft["documentation"];
-  photoActions: Record<SamplePointDb, (filePath: string) => Promise<{ error?: string }>>;
+  claimedSpecDetail: ClaimedSpecDetail;
+  gradeMeanings: Record<GradeDb, string> | null;
+  documentationDefaults: DocumentationInput;
+  odorLevel3Hint: string | null;
+  photoActions: Record<
+    SamplePointDb,
+    (filePath: string) => Promise<{ error?: string }>
+  >;
 }) {
   const router = useRouter();
-  const storageKey = `vms-grading-${batchId}`;
-
+  const storageKey = `vms-grading-v2-${batchId}`;
   const [step, setStep] = useState(0);
   const [activePoint, setActivePoint] = useState<SamplePointDb>("top");
-  const [draft, setDraft] = useState<Draft>(() => emptyDraft(category, documentationDefaults));
+  const [draft, setDraft] = useState<Draft>(() =>
+    emptyDraft(profile, documentationDefaults),
+  );
   const [restored, setRestored] = useState(false);
   const [pending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-
+  const [nonB3Reconfirmed, setNonB3Reconfirmed] = useState(false);
+  const [findingOpen, setFindingOpen] = useState(false);
+  const [findingNotes, setFindingNotes] = useState("");
+  const [findingState, findingAction, findingPending] = useActionState(
+    async (prev: ActionState, data: FormData) => {
+      const result = await rejectNonB3FindingAction(batchId, prev, data);
+      if (result.ok) {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {}
+        router.refresh();
+      }
+      return result;
+    },
+    {},
+  );
   useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey);
-      if (stored) setDraft(JSON.parse(stored) as Draft);
-    } catch {
-      // Draft rusak atau localStorage diblokir: mulai dari isian kosong.
-    }
+      if (stored) {
+        const parsed = draftSchema.safeParse(JSON.parse(stored));
+        if (parsed.success) setDraft(parsed.data);
+      }
+    } catch {}
     setRestored(true);
   }, [storageKey]);
-
   useEffect(() => {
-    if (!restored) return;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(draft));
-    } catch {
-      // Penyimpanan penuh atau mode privat — form tetap bisa dipakai.
+    if (restored) {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(draft));
+      } catch {}
     }
   }, [draft, restored, storageKey]);
-
-  const purity = category.criteria.filter((c) => c.criterion === "purity");
-  const cleanliness = category.criteria.filter((c) => c.criterion === "cleanliness");
-
+  const samplingProfile = toFormProfile(profile);
   function updatePoint(point: SamplePointDb, patch: Partial<PointDraft>) {
-    setDraft((prev) => ({
-      ...prev,
-      points: { ...prev.points, [point]: { ...prev.points[point], ...patch } },
+    setDraft((d) => ({
+      ...d,
+      points: { ...d.points, [point]: { ...d.points[point], ...patch } },
     }));
   }
-
-  function updateScore(point: SamplePointDb, subKey: string, value: number) {
-    setDraft((prev) => ({
-      ...prev,
-      points: {
-        ...prev.points,
-        [point]: {
-          ...prev.points[point],
-          scores: { ...prev.points[point].scores, [subKey]: value },
-        },
+  function updateScore(key: string, value: number | undefined) {
+    const scores = { ...draft.points[activePoint].scores };
+    if (value === undefined) delete scores[key];
+    else scores[key] = value;
+    updatePoint(activePoint, { scores });
+  }
+  const pointInputs: SamplePointInput[] = POINTS.map((point) => ({
+    point,
+    odorLevel: draft.points[point].odorLevel,
+    scores: draft.points[point].scores,
+    unitCounts: Object.fromEntries(
+      Object.entries(draft.points[point].unitsPassed)
+        .filter(([, value]) => value !== "")
+        .map(([key, value]) => [
+          key,
+          { passed: Number(value), checked: profile.units_per_point },
+        ]),
+    ),
+    measurementMethods: draft.points[point].measurementMethods,
+  }));
+  function quantityInput() {
+    const observations = POINTS.map((point) => ({
+      key: `units_per_bundle_${point}`,
+      observed: toNumber(draft.counts[point]),
+    }));
+    if (draft.counts.bundle_count?.trim())
+      observations.push({
+        key: "bundle_count",
+        observed: toNumber(draft.counts.bundle_count),
+      });
+    return {
+      claimedWeightKg,
+      actualWeightKg: toNumber(draft.actualWeightKg),
+      countChecks: canonicalCountChecks(claimedSpecDetail, observations),
+      specUnits: {
+        passed: toNumber(draft.specUnitsPassed),
+        checked: toNumber(draft.specUnitsChecked),
       },
-    }));
+    };
   }
-
   const preview = useMemo<{ result?: GradingResult; error?: string }>(() => {
-    const actual = Number(draft.actualWeightKg.replace(",", "."));
-    const spec = Number(draft.specMatchPct.replace(",", "."));
-    if (!Number.isFinite(actual) || !Number.isFinite(spec)) {
-      return { error: "Isi berat timbang ulang dan persentase kesesuaian spesifikasi dulu." };
-    }
-
     try {
       return {
         result: computeGrading({
           category,
-          samplePoints: POINTS.map((point) => ({
-            point,
-            odorLevel: draft.points[point].odorLevel,
-            scores: draft.points[point].scores,
-          })),
-          quantity: { claimedWeightKg, actualWeightKg: actual, specMatchPct: spec },
+          samplingProfile: toFormProfile(profile),
+          samplePoints: pointInputs,
+          quantity: quantityInput(),
           documentation: draft.documentation,
         }),
       };
     } catch (error) {
-      if (error instanceof ScoringError) return { error: error.message };
-      return { error: "Perhitungan gagal. Periksa kembali isian." };
+      return {
+        error:
+          error instanceof ScoringError
+            ? error.message
+            : GRADER_TEXT.calculationError,
+      };
     }
-  }, [category, claimedWeightKg, draft]);
-
+    // Payload diturunkan sepenuhnya dari konfigurasi dan draft pada render ini.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, profile, claimedWeightKg, claimedSpecDetail, draft]);
+  let quantityPreview: ReturnType<typeof computeQuantity> | null = null;
+  try {
+    quantityPreview = computeQuantity(
+      category,
+      quantityInput(),
+      samplingProfile,
+    );
+  } catch {}
+  const complete = POINTS.map((point) => {
+    try {
+      computeSamplePoint(
+        category,
+        pointInputs.find((p) => p.point === point)!,
+        samplingProfile,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  });
   function submit() {
+    if (!nonB3Reconfirmed || !preview.result) return;
     setSubmitError(null);
     startTransition(async () => {
-      const result: ActionState = await submitGradingAction({
+      const q = quantityInput();
+      const result = await submitGradingAction({
         batchId,
-        samplePoints: POINTS.map((point) => ({
-          point,
-          odorLevel: draft.points[point].odorLevel,
-          notes: draft.points[point].notes,
-          scores: draft.points[point].scores,
+        nonB3Reconfirmed,
+        samplePoints: pointInputs.map((p) => ({
+          ...p,
+          notes: draft.points[p.point].notes,
         })),
         quantity: {
-          actualWeightKg: Number(draft.actualWeightKg.replace(",", ".")),
-          specMatchPct: Number(draft.specMatchPct.replace(",", ".")),
+          actualWeightKg: q.actualWeightKg,
+          countChecks: q.countChecks.map(({ key, observed, label }) => ({
+            key,
+            observed,
+            label,
+          })),
+          specUnitsPassed: q.specUnits.passed,
+          specUnitsChecked: q.specUnits.checked,
+          weighingMoistureNote: draft.weighingMoistureNote,
           notes: draft.quantityNotes,
         },
         documentation: draft.documentation,
       });
-
-      if (result.error) {
-        setSubmitError(result.error);
-        return;
+      if (result.error) setSubmitError(result.error);
+      else if (result.ok) {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {}
+        router.refresh();
       }
-
-      try {
-        localStorage.removeItem(storageKey);
-      } catch {
-        // Tidak masalah bila gagal dibersihkan.
-      }
-      router.refresh();
     });
   }
-
-  const pointDraft = draft.points[activePoint];
-  const overridden = pointDraft.odorLevel === 3;
-  const odorSub = cleanliness.find((c) => c.isOdor);
-  const cap = odorSub?.odorOverrideCap ?? 40;
-
+  const p = draft.points[activePoint];
+  const overridden = p.odorLevel === 3;
+  function renderSub(sub: CategoryConfig["criteria"][number]) {
+    const disabled =
+      pending ||
+      findingPending ||
+      (sub.criterion === "cleanliness" && overridden);
+    return (
+      <div key={sub.subKey}>
+        {sub.scoringMethod === "unit_count" ? (
+          <UnitCountInput
+            id={`${activePoint}-${sub.subKey}`}
+            label={sub.label}
+            hint={sub.helpText}
+            checked={profile.units_per_point}
+            unitLabel={profile.unit_label}
+            value={p.unitsPassed[sub.subKey] ?? ""}
+            disabled={disabled}
+            onChange={(value) =>
+              updatePoint(activePoint, {
+                unitsPassed: { ...p.unitsPassed, [sub.subKey]: value },
+              })
+            }
+          />
+        ) : (
+          <ScoreInput
+            id={`${activePoint}-${sub.subKey}`}
+            label={sub.label}
+            hint={sub.helpText ?? undefined}
+            weightPct={sub.weightPct}
+            value={p.scores[sub.subKey]}
+            disabled={disabled}
+            onChange={(value) => updateScore(sub.subKey, value)}
+          />
+        )}
+        {sub.requiresMeasurementMethod ? (
+          <fieldset className="mb-3 space-y-2">
+            <legend className="mb-2 text-sm font-medium text-ink">
+              {GRADER_TEXT.method}
+            </legend>
+            {(["moisture_meter", "touch_estimate"] as const).map((method) => (
+              <label
+                key={method}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-line p-3"
+              >
+                <input
+                  type="radio"
+                  name={`${activePoint}-${sub.subKey}-method`}
+                  checked={p.measurementMethods[sub.subKey] === method}
+                  disabled={disabled}
+                  onChange={() =>
+                    updatePoint(activePoint, {
+                      measurementMethods: {
+                        ...p.measurementMethods,
+                        [sub.subKey]: method as MeasurementMethod,
+                      },
+                    })
+                  }
+                  className="size-5 accent-[var(--brand)]"
+                />
+                <span className="text-sm text-ink">
+                  {method === "moisture_meter"
+                    ? GRADER_TEXT.moistureMeter
+                    : GRADER_TEXT.touchEstimate}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <Panel>
-      <Steps steps={STEP_LABELS} current={step} />
-
-      <PanelBody className="space-y-6">
+      <Steps steps={GRADER_TEXT.steps} current={step} />
+      <PanelBody className="space-y-5">
         {step === 0 ? (
           <div className="space-y-5">
-            <div>
-              <p className="text-sm text-ink-muted">
-                Ambil sampel di tiga titik berbeda dalam satu tumpukan: Atas, Tengah, Bawah.
-              </p>
-              <div className="mt-3 flex gap-2">
-                {POINTS.map((point) => (
-                  <button
-                    key={point}
-                    type="button"
-                    onClick={() => setActivePoint(point)}
-                    aria-pressed={activePoint === point}
-                    className={`h-11 flex-1 rounded-[3px] border text-sm font-medium ${
-                      activePoint === point
-                        ? "border-brand bg-brand text-brand-ink"
-                        : "border-line-strong bg-surface text-ink"
-                    }`}
-                  >
-                    {SAMPLE_POINT_LABELS[point]}
-                  </button>
-                ))}
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              {POINTS.map((point, i) => (
+                <Button
+                  key={point}
+                  type="button"
+                  variant={activePoint === point ? "primary" : "outline"}
+                  onClick={() => setActivePoint(point)}
+                  className="h-auto min-h-11 flex-col px-2 py-2"
+                >
+                  {SAMPLE_POINT_LABELS[point]}
+                  <span className="block text-xs">
+                    {complete[i]
+                      ? `✓ ${GRADER_TEXT.completePoint}`
+                      : GRADER_TEXT.incompletePoint}
+                  </span>
+                </Button>
+              ))}
             </div>
-
             <fieldset>
-              <legend className="text-sm font-semibold text-ink">Kemurnian/Komposisi</legend>
-              <div className="divide-y divide-line">
-                {purity.map((sub) => (
-                  <ScoreInput
-                    key={sub.subKey}
-                    id={`${activePoint}-${sub.subKey}`}
-                    label={sub.label}
-                    weightPct={sub.weightPct}
-                    value={pointDraft.scores[sub.subKey] ?? 0}
-                    onChange={(value) => updateScore(activePoint, sub.subKey, value)}
-                  />
-                ))}
-              </div>
+              <legend className="text-base font-semibold text-ink">
+                {GRADER_TEXT.speciesPurity}
+              </legend>
+              {category.criteria
+                .filter((s) => s.criterion === "purity")
+                .map(renderSub)}
             </fieldset>
-
-            <fieldset>
-              <legend className="text-sm font-semibold text-ink">Kebersihan & Kontaminasi</legend>
-
-              <div className="mt-2 space-y-2">
-                <p className="text-sm font-medium text-ink">Level bau</p>
+            <fieldset className="space-y-3">
+              <legend className="text-base font-semibold text-ink">
+                {GRADER_TEXT.cleanliness}
+              </legend>
+              <div className="space-y-2">
                 {ODOR_LEVELS.map((level) => (
                   <label
                     key={level.level}
-                    className="flex cursor-pointer items-start gap-3 border border-line bg-surface p-3 has-[:checked]:border-brand has-[:checked]:bg-brand-soft"
+                    className="flex cursor-pointer gap-3 rounded-xl border border-line p-3"
                   >
                     <input
                       type="radio"
-                      name={`odor-${activePoint}`}
-                      checked={pointDraft.odorLevel === level.level}
-                      onChange={() => updatePoint(activePoint, { odorLevel: level.level })}
-                      className="mt-0.5 size-5 shrink-0 accent-[var(--brand)]"
+                      name={`${activePoint}-odor-level`}
+                      checked={p.odorLevel === level.level}
+                      disabled={pending || findingPending}
+                      onChange={() =>
+                        updatePoint(activePoint, { odorLevel: level.level })
+                      }
+                      className="mt-1 size-5 accent-[var(--brand)]"
                     />
-                    <span className="min-w-0">
+                    <span>
                       <span className="block text-sm font-medium text-ink">
-                        Level {level.level} — {level.label}
+                        {level.level} · {level.label}
                       </span>
-                      <span className="mt-0.5 block text-sm text-ink-muted">{level.hint}</span>
+                      <span className="text-sm text-ink-muted">
+                        {level.level === 3
+                          ? (odorLevel3Hint ?? level.hint)
+                          : level.hint}
+                      </span>
                     </span>
                   </label>
                 ))}
               </div>
-
               {overridden ? (
-                <p className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
-                  Override aktif. Skor kebersihan titik {SAMPLE_POINT_LABELS[activePoint]}{" "}
-                  ditetapkan {cap}. Sub-kriteria di bawah tetap disimpan sebagai data mentah, tapi
-                  tidak ikut dihitung.
+                <p
+                  role="status"
+                  className="rounded-xl bg-warning-soft p-3 text-sm text-warning"
+                >
+                  {GRADER_TEXT.overrideNotice(odorOverrideCapOf(category))}
                 </p>
               ) : null}
-
-              <div className="divide-y divide-line">
-                {cleanliness.map((sub) => (
-                  <ScoreInput
-                    key={sub.subKey}
-                    id={`${activePoint}-${sub.subKey}`}
-                    label={sub.label}
-                    weightPct={sub.weightPct}
-                    value={pointDraft.scores[sub.subKey] ?? 0}
-                    disabled={overridden}
-                    onChange={(value) => updateScore(activePoint, sub.subKey, value)}
-                  />
-                ))}
-              </div>
+              {category.criteria
+                .filter((s) => s.criterion === "cleanliness")
+                .map(renderSub)}
             </fieldset>
-
-            <Field label="Catatan titik ini" htmlFor={`notes-${activePoint}`}>
+            <Field label={GRADER_TEXT.notes} htmlFor={`notes-${activePoint}`}>
               <Textarea
                 id={`notes-${activePoint}`}
-                value={pointDraft.notes}
-                onChange={(event) => updatePoint(activePoint, { notes: event.target.value })}
+                value={p.notes}
+                maxLength={500}
+                onChange={(e) =>
+                  updatePoint(activePoint, { notes: e.target.value })
+                }
               />
             </Field>
-
             <div>
               <p className="mb-2 text-sm font-medium text-ink">
-                Foto titik {SAMPLE_POINT_LABELS[activePoint]}
+                {GRADER_TEXT.photoTitle(SAMPLE_POINT_LABELS[activePoint])}
               </p>
               <FileUploader
                 batchId={batchId}
                 bucket={BUCKETS.photos}
-                label="Ambil / unggah foto titik ini"
+                label={GRADER_TEXT.pointPhoto}
                 accept="image/*"
                 onUploaded={photoActions[activePoint]}
               />
             </div>
-
-            <Button type="button" size="block" onClick={() => setStep(1)}>
-              Lanjut ke kuantitas
-            </Button>
           </div>
         ) : null}
-
         {step === 1 ? (
           <div className="space-y-5">
-            <p className="text-sm text-ink-muted">
-              Klaim pabrik: {formatWeight(claimedWeightKg)}. Timbang ulang seluruh batch, lalu catat
-              berapa persen sampel yang sesuai spesifikasi klaim.
-            </p>
-
-            <Field label="Berat timbang ulang (kg)" htmlFor="actualWeightKg" required>
+            <Field
+              label={GRADER_TEXT.actualWeight}
+              htmlFor="actualWeightKg"
+              required
+            >
               <Input
                 id="actualWeightKg"
                 inputMode="decimal"
                 value={draft.actualWeightKg}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, actualWeightKg: event.target.value }))
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, actualWeightKg: e.target.value }))
                 }
               />
             </Field>
-
             <Field
-              label="Sampel sesuai spesifikasi (%)"
-              htmlFor="specMatchPct"
-              hint="Berapa persen sampel yang ukuran/bentuknya sesuai klaim pabrik."
-              required
+              label={GRADER_TEXT.weighingMoistureNote}
+              htmlFor="weighingMoistureNote"
+              hint={GRADER_TEXT.weighingMoistureHint}
             >
               <Input
-                id="specMatchPct"
-                inputMode="decimal"
-                value={draft.specMatchPct}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, specMatchPct: event.target.value }))
-                }
-              />
-            </Field>
-
-            <Field label="Catatan" htmlFor="quantityNotes">
-              <Textarea
-                id="quantityNotes"
-                value={draft.quantityNotes}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, quantityNotes: event.target.value }))
-                }
-              />
-            </Field>
-
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(0)}>
-                Kembali
-              </Button>
-              <Button type="button" className="flex-1" onClick={() => setStep(2)}>
-                Lanjut
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <div className="space-y-5">
-            <p className="text-sm text-ink-muted">
-              Empat item, masing-masing 25 poin. Centang yang benar-benar ada pada batch ini.
-            </p>
-
-            <div className="space-y-2">
-              <Checkbox
-                label="Tanggal produksi tercantum"
-                checked={draft.documentation.hasProductionDate}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    documentation: { ...prev.documentation, hasProductionDate: event.target.checked },
+                id="weighingMoistureNote"
+                value={draft.weighingMoistureNote}
+                maxLength={200}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    weighingMoistureNote: e.target.value,
                   }))
                 }
               />
+            </Field>
+            {profile.claim_mode === "bundle" &&
+            claimedSpecDetail.claimMode === "bundle" ? (
+              <div className="space-y-3">
+                {POINTS.map((point) => (
+                  <Field
+                    key={point}
+                    label={GRADER_TEXT.bundleObserved(
+                      SAMPLE_POINT_LABELS[point],
+                    )}
+                    htmlFor={`count-${point}`}
+                    hint={GRADER_TEXT.claimedCount(
+                      claimedSpecDetail.unitsPerBundle,
+                    )}
+                    required
+                  >
+                    <Input
+                      id={`count-${point}`}
+                      inputMode="numeric"
+                      value={draft.counts[point] ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          counts: { ...d.counts, [point]: e.target.value },
+                        }))
+                      }
+                    />
+                  </Field>
+                ))}
+                <Field
+                  label={GRADER_TEXT.bundleCountObserved}
+                  htmlFor="bundleCountObserved"
+                  hint={GRADER_TEXT.claimedCount(claimedSpecDetail.bundleCount)}
+                >
+                  <Input
+                    id="bundleCountObserved"
+                    inputMode="numeric"
+                    value={draft.counts.bundle_count ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        counts: { ...d.counts, bundle_count: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+            ) : null}
+            <Field
+              label={GRADER_TEXT.unitsChecked}
+              htmlFor="specUnitsChecked"
+              required
+            >
+              <Input
+                id="specUnitsChecked"
+                inputMode="numeric"
+                value={draft.specUnitsChecked}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, specUnitsChecked: e.target.value }))
+                }
+              />
+            </Field>
+            <UnitCountInput
+              id="specUnitsPassed"
+              label={GRADER_TEXT.dimensionUnits}
+              checked={Number(draft.specUnitsChecked) || 0}
+              unitLabel={profile.unit_label}
+              value={draft.specUnitsPassed}
+              onChange={(value) =>
+                setDraft((d) => ({ ...d, specUnitsPassed: value }))
+              }
+            />
+            <Field label={GRADER_TEXT.quantityNotes} htmlFor="quantityNotes">
+              <Textarea
+                id="quantityNotes"
+                value={draft.quantityNotes}
+                maxLength={500}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, quantityNotes: e.target.value }))
+                }
+              />
+            </Field>
+            {quantityPreview ? (
+              <QuantityDetail
+                breakdown={{ quantity: quantityPreview }}
+                weighingMoistureNote={draft.weighingMoistureNote}
+              />
+            ) : null}
+          </div>
+        ) : null}
+        {step === 2 ? (
+          <div className="space-y-3">
+            <p className="text-sm text-ink-muted">
+              {GRADER_TEXT.documentationHint}
+            </p>
+            {GRADER_TEXT.documentationItems.map(({ key, label }) => (
               <Checkbox
-                label="Foto batch multi-sudut"
-                checked={draft.documentation.hasMultiAnglePhotos}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
+                key={key}
+                label={label}
+                checked={draft.documentation[key]}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
                     documentation: {
-                      ...prev.documentation,
-                      hasMultiAnglePhotos: event.target.checked,
+                      ...d.documentation,
+                      [key]: e.target.checked,
                     },
                   }))
                 }
               />
-              <Checkbox
-                label="Nomor lot / traceability"
-                checked={draft.documentation.hasLotNumber}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    documentation: { ...prev.documentation, hasLotNumber: event.target.checked },
-                  }))
-                }
-              />
-              <Checkbox
-                label="Hasil uji tambahan (mis. uji lab)"
-                checked={draft.documentation.hasLabTest}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    documentation: { ...prev.documentation, hasLabTest: event.target.checked },
-                  }))
-                }
-              />
-            </div>
-
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(1)}>
-                Kembali
-              </Button>
-              <Button type="button" className="flex-1" onClick={() => setStep(3)}>
-                Lihat pratinjau
-              </Button>
-            </div>
+            ))}
           </div>
         ) : null}
-
         {step === 3 ? (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {preview.error ? (
-              <p role="alert" className="border border-warning bg-warning-soft px-3 py-2 text-sm text-warning">
+              <p
+                role="alert"
+                className="rounded-xl bg-warning-soft p-3 text-sm text-warning"
+              >
                 {preview.error}
               </p>
             ) : preview.result ? (
@@ -458,55 +635,129 @@ export function GradingWizard({
                   grade={preview.result.grade}
                   finalScore={preview.result.finalScore}
                 />
-
-                <div>
-                  <h3 className="mb-1 text-sm font-semibold text-ink">Kenapa skornya sekian</h3>
-                  <FinalScoreBreakdown breakdown={preview.result.breakdown} />
-                </div>
-
-                <div>
-                  <h3 className="mb-2 text-sm font-semibold text-ink">Skor per titik</h3>
-                  <SamplePointTable breakdown={preview.result.breakdown} />
-                  <div className="mt-3">
-                    <ConsistencyNote breakdown={preview.result.breakdown} />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="neutral">Versi rumus {preview.result.scoringVersion}</Badge>
-                  <CopyButton
-                    label="Salin ringkasan"
-                    value={`Batch ${batchId} — grade ${preview.result.grade}, skor ${preview.result.finalScore}`}
-                  />
-                </div>
+                <FinalScoreBreakdown breakdown={preview.result.breakdown} />
+                <SamplePointTable breakdown={preview.result.breakdown} />
+                <ConsistencyNote breakdown={preview.result.breakdown} />
+                <QuantityDetail
+                  breakdown={preview.result.breakdown}
+                  weighingMoistureNote={draft.weighingMoistureNote}
+                />
+                <GradeMeaningTable
+                  categoryName={category.name}
+                  meanings={gradeMeanings}
+                  grade={preview.result.grade}
+                />
+                <Badge tone="neutral">
+                  {GRADER_TEXT.formulaVersion} {preview.result.scoringVersion}
+                </Badge>
               </>
             ) : null}
-
+            <Checkbox
+              label={REVISION_TEXT.nonB3ReconfirmLabel}
+              checked={nonB3Reconfirmed}
+              onChange={(e) => setNonB3Reconfirmed(e.target.checked)}
+            />
             {submitError ? (
-              <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+              <p role="alert" className="text-sm text-danger">
                 {submitError}
               </p>
             ) : null}
-
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={() => setStep(2)}>
-                Kembali
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
+          {step > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending || findingPending}
+              onClick={() => setStep(step - 1)}
+            >
+              {ACTIONS.back}
+            </Button>
+          ) : null}
+          {step < 3 ? (
+            <Button
+              type="button"
+              disabled={pending || findingPending}
+              onClick={() => setStep(step + 1)}
+            >
+              {ACTIONS.next}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              disabled={
+                pending ||
+                findingPending ||
+                !preview.result ||
+                !nonB3Reconfirmed
+              }
+              onClick={submit}
+            >
+              {pending ? GRADER_TEXT.submitting : GRADER_TEXT.submit}
+            </Button>
+          )}
+        </div>
+        <div className="border-t border-line pt-4">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={pending || findingPending}
+            onClick={() => setFindingOpen(true)}
+          >
+            {REVISION_TEXT.nonB3FindingButton}
+          </Button>
+        </div>
+        {findingOpen ? (
+          <form
+            action={findingAction}
+            className="space-y-3 rounded-xl border border-danger bg-danger-soft p-4"
+            aria-label={REVISION_TEXT.nonB3FindingTitle}
+          >
+            <h3 className="font-semibold text-danger">
+              {REVISION_TEXT.nonB3FindingTitle}
+            </h3>
+            <p className="text-sm leading-relaxed text-ink">
+              {REVISION_TEXT.nonB3FindingBody}
+            </p>
+            <Field
+              label={GRADER_TEXT.gateNotes}
+              htmlFor="nonB3FindingNotes"
+              error={findingState.fieldErrors?.notes}
+              required
+            >
+              <Textarea
+                id="nonB3FindingNotes"
+                name="notes"
+                value={findingNotes}
+                onChange={(e) => setFindingNotes(e.target.value)}
+                placeholder={REVISION_TEXT.nonB3FindingPlaceholder}
+                maxLength={1000}
+              />
+            </Field>
+            {findingState.error ? (
+              <p role="alert" className="text-sm text-danger">
+                {findingState.error}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                variant="danger"
+                disabled={findingPending || findingNotes.trim().length < 10}
+              >
+                {REVISION_TEXT.nonB3FindingConfirm}
               </Button>
               <Button
                 type="button"
-                className="flex-1"
-                onClick={submit}
-                disabled={pending || !preview.result}
+                variant="outline"
+                disabled={findingPending}
+                onClick={() => setFindingOpen(false)}
               >
-                {pending ? "Mengirim…" : "Submit hasil penilaian"}
+                {REVISION_TEXT.nonB3FindingCancel}
               </Button>
             </div>
-
-            <p className="text-sm text-ink-muted">
-              Setelah disubmit, hasil masuk ke Admin untuk ditinjau. Sertifikat diterbitkan Admin,
-              bukan grader.
-            </p>
-          </div>
+          </form>
         ) : null}
       </PanelBody>
     </Panel>
