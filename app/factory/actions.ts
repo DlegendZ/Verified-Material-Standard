@@ -3,16 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAudit } from "@/lib/audit";
-import { generateBatchCode } from "@/lib/certificate";
+import { generateBatchCode, claimedSpecSummary } from "@/lib/certificate";
 import {
   AuthorizationError,
   createSupabaseServerClient,
   requireRole,
 } from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
-import type { FactoryRow } from "@/lib/types/db";
+import type {
+  FactoryRow,
+  MaterialFormProfileRow,
+  BatchRow,
+} from "@/lib/types/db";
 import {
-  legacyBatchDraftSchema as batchDraftSchema,
+  batchDraftSchema,
   factoryProfileSchema,
 } from "@/lib/validation/schemas";
 
@@ -25,7 +29,7 @@ export interface ActionState {
 function fieldErrorsOf(issues: { path: PropertyKey[]; message: string }[]) {
   const result: Record<string, string> = {};
   for (const issue of issues) {
-    const key = String(issue.path[0] ?? "form");
+    const key = issue.path.length ? issue.path.map(String).join(".") : "form";
     result[key] ??= issue.message;
   }
   return result;
@@ -102,13 +106,29 @@ export async function createBatchAction(
 
   try {
     const user = await requireRole("factory");
+    let claimedSpecDetail: unknown;
+    try {
+      claimedSpecDetail = JSON.parse(
+        String(formData.get("claimedSpecDetail") ?? "null"),
+      );
+    } catch {
+      return { fieldErrors: { claimedSpecDetail: ERRORS.generic } };
+    }
     const parsed = batchDraftSchema.safeParse({
       categoryId: String(formData.get("categoryId") ?? ""),
+      formProfileId: String(formData.get("formProfileId") ?? ""),
+      declaredMaterialType: String(formData.get("declaredMaterialType") ?? ""),
       claimedWeightKg: toNumber(formData.get("claimedWeightKg")),
-      claimedSpec: String(formData.get("claimedSpec") ?? ""),
+      claimedSpecDetail,
       productionDate: String(formData.get("productionDate") ?? ""),
       lotNumber: String(formData.get("lotNumber") ?? ""),
       description: String(formData.get("description") ?? ""),
+      declarations: {
+        sourceIsProductionResidue:
+          formData.get("sourceIsProductionResidue") === "on",
+        noChemicalTreatment: formData.get("noChemicalTreatment") === "on",
+        singleForm: formData.get("singleForm") === "on",
+      },
     });
     if (!parsed.success)
       return { fieldErrors: fieldErrorsOf(parsed.error.issues) };
@@ -130,8 +150,22 @@ export async function createBatchAction(
       .maybeSingle<{ status: string; is_active: boolean }>();
     if (!category || !category.is_active || category.status !== "live") {
       return {
-        error: "Kategori itu belum bisa diajukan. Pilih kategori lain.",
+        error: ERRORS.categoryNotLive,
       };
+    }
+
+    const { data: profile } = await supabase
+      .from("material_form_profiles")
+      .select("*")
+      .eq("id", parsed.data.formProfileId)
+      .eq("category_id", parsed.data.categoryId)
+      .eq("is_active", true)
+      .maybeSingle<MaterialFormProfileRow>();
+    if (
+      !profile ||
+      profile.claim_mode !== parsed.data.claimedSpecDetail.claimMode
+    ) {
+      return { fieldErrors: { formProfileId: ERRORS.profileMismatch } };
     }
 
     const { data: inserted, error } = await supabase
@@ -141,7 +175,19 @@ export async function createBatchAction(
         category_id: parsed.data.categoryId,
         batch_code: generateBatchCode(),
         claimed_weight_kg: parsed.data.claimedWeightKg,
-        claimed_spec: parsed.data.claimedSpec || null,
+        form_profile_id: profile.id,
+        declared_material_type: parsed.data.declaredMaterialType,
+        claimed_spec_detail: parsed.data.claimedSpecDetail,
+        claimed_spec: claimedSpecSummary(
+          parsed.data.claimedSpecDetail,
+          profile,
+          parsed.data.declaredMaterialType,
+          parsed.data.claimedWeightKg,
+        ),
+        intake_declarations: {
+          ...parsed.data.declarations,
+          declaredAt: new Date().toISOString(),
+        },
         production_date: parsed.data.productionDate || null,
         lot_number: parsed.data.lotNumber || null,
         description: parsed.data.description || null,
@@ -188,13 +234,43 @@ export async function submitBatchAction(batchId: string): Promise<ActionState> {
 
     const { data: batch } = await supabase
       .from("batches")
-      .select("id, status, factory_id")
+      .select("*")
       .eq("id", batchId)
-      .maybeSingle<{ id: string; status: string; factory_id: string }>();
+      .maybeSingle<BatchRow>();
 
     if (!batch || batch.factory_id !== factory.id)
       return { error: ERRORS.unauthorized };
     if (batch.status !== "draft") return { error: "Batch ini sudah diajukan." };
+
+    const { data: category } = await supabase
+      .from("material_categories")
+      .select("is_active, status")
+      .eq("id", batch.category_id)
+      .maybeSingle<{ is_active: boolean; status: string }>();
+    if (!category?.is_active || category.status !== "live")
+      return { error: ERRORS.categoryNotLive };
+    const { data: profiles, error: profilesError } = await supabase
+      .from("material_form_profiles")
+      .select("id, claim_mode")
+      .eq("category_id", batch.category_id)
+      .eq("is_active", true);
+    if (profilesError) return { error: ERRORS.generic };
+    if (
+      (profiles ?? []).length &&
+      !profiles?.some(
+        (p) =>
+          p.id === batch.form_profile_id &&
+          p.claim_mode === batch.claimed_spec_detail?.claimMode,
+      )
+    )
+      return { error: ERRORS.profileRequired };
+    if (
+      (profiles ?? []).length &&
+      (!batch.intake_declarations?.sourceIsProductionResidue ||
+        !batch.intake_declarations?.noChemicalTreatment ||
+        !batch.intake_declarations?.singleForm)
+    )
+      return { error: ERRORS.declarationRequired };
 
     const { error } = await supabase
       .from("batches")

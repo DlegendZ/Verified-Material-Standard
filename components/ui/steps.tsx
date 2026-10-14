@@ -9,15 +9,19 @@ export function Steps({
   current,
   className,
 }: {
-  steps: string[];
+  steps: readonly string[];
   current: number;
   className?: string;
 }) {
   return (
-    <nav aria-label="Langkah penilaian" className={cn("border-b border-line", className)}>
+    <nav
+      aria-label="Langkah penilaian"
+      className={cn("border-b border-line", className)}
+    >
       <ol className="flex items-stretch overflow-x-auto">
         {steps.map((step, index) => {
-          const state = index === current ? "current" : index < current ? "done" : "todo";
+          const state =
+            index === current ? "current" : index < current ? "done" : "todo";
           return (
             <li key={step} className="min-w-0 flex-1">
               <div

@@ -42,19 +42,6 @@ export const factoryProfileSchema = z.object({
 });
 export type FactoryProfileInput = z.infer<typeof factoryProfileSchema>;
 
-export const legacyBatchDraftSchema = z.object({
-  categoryId: z.uuid("Kategori material wajib dipilih"),
-  claimedWeightKg: z
-    .number({ message: "Klaim berat wajib diisi" })
-    .positive("Klaim berat harus lebih dari 0")
-    .max(1_000_000, "Klaim berat tidak masuk akal"),
-  claimedSpec: z.string().max(400).optional().or(z.literal("")),
-  productionDate: z.string().optional().or(z.literal("")),
-  lotNumber: z.string().max(80).optional().or(z.literal("")),
-  description: z.string().max(1000).optional().or(z.literal("")),
-});
-export type LegacyBatchDraftInput = z.infer<typeof legacyBatchDraftSchema>;
-
 /** Tiga gerbang wajib. Bila ada yang gagal, catatan wajib diisi (SRD Bab 6.3). */
 export const gateCheckSchema = z
   .object({

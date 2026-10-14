@@ -323,6 +323,10 @@ export const LISTING_TEXT = {
     "VMS (Verified Material Standard) adalah lembaga grading independen. VMS menilai kondisi batch lewat sampling 3 titik; tidak menjual material, tidak memegang transaksi, dan tidak menentukan harga.",
 } as const;
 export const BATCH_FORM_TEXT = {
+  remainingDays: (days: number) => `${days} hari tersisa`,
+  factoryNameHint: "Sesuai dokumen resmi, misalnya UD Mebel Contoh.",
+  previewHint:
+    "Lengkapi jenis kayu, berat, ukuran, dan toleransi untuk melihat ringkasan.",
   steps: ["Material", "Klaim", "Detail", "Deklarasi"],
   title: "Ajukan batch",
   save: "Simpan draft batch",
@@ -383,6 +387,16 @@ export const CATEGORY_ADMIN_TEXT = {
   unitCount: "Hitung per unit",
   scale: "Skala 0–100",
   measurementRequired: "+ metode ukur wajib",
+} as const;
+
+export const GRADE_TABLE_TEXT = {
+  grade: "Grade",
+  meaning: "Arti praktis",
+} as const;
+export const EFFECTIVE_CERTIFICATE_LABELS = {
+  valid: "BERLAKU",
+  expired: "KEDALUWARSA",
+  revoked: "TIDAK BERLAKU",
 } as const;
 
 export const PUBLIC_TEXT = {

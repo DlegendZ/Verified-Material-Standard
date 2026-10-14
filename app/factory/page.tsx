@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/app-shell";
-import { BatchStatusBadge, FactoryStatusBadge } from "@/components/status-badges";
+import {
+  BatchStatusBadge,
+  FactoryStatusBadge,
+} from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { GradeChip } from "@/components/ui/grade";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
-import { formatDate, formatWeight } from "@/lib/format";
+import { formatDate, formatWeight, daysUntil } from "@/lib/format";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
-import { EMPTY_STATES, ERRORS } from "@/lib/text";
+import { EMPTY_STATES, ERRORS, BATCH_FORM_TEXT } from "@/lib/text";
 import type { BatchStatus, FactoryRow, GradeDb } from "@/lib/types/db";
 
 export const metadata = { title: "Dashboard pabrik" };
@@ -20,7 +23,11 @@ interface BatchListRow {
   created_at: string;
   material_categories: { name: string } | null;
   grading_results: { grade: GradeDb; final_score: number }[];
-  certificates: { certificate_code: string; status: string }[];
+  certificates: {
+    certificate_code: string;
+    status: string;
+    valid_until: string;
+  }[];
 }
 
 export default async function FactoryDashboardPage() {
@@ -37,7 +44,7 @@ export default async function FactoryDashboardPage() {
     ? await supabase
         .from("batches")
         .select(
-          "id, batch_code, status, claimed_weight_kg, created_at, material_categories(name), grading_results(grade, final_score), certificates(certificate_code, status)",
+          "id, batch_code, status, claimed_weight_kg, created_at, material_categories(name), grading_results(grade, final_score), certificates(certificate_code, status, valid_until)",
         )
         .eq("factory_id", factory.id)
         .order("created_at", { ascending: false })
@@ -83,14 +90,17 @@ export default async function FactoryDashboardPage() {
           <PanelBody>
             {factory.verification_status === "verified" ? (
               <p className="text-sm text-ink-muted">
-                Pabrik terverifikasi sejak {formatDate(factory.verified_at)}. Kamu bisa mengajukan
-                batch kapan saja.
+                Pabrik terverifikasi sejak {formatDate(factory.verified_at)}.
+                Kamu bisa mengajukan batch kapan saja.
               </p>
             ) : factory.verification_status === "pending" ? (
-              <p className="text-sm text-ink-muted">{ERRORS.factoryNotVerified}</p>
+              <p className="text-sm text-ink-muted">
+                {ERRORS.factoryNotVerified}
+              </p>
             ) : (
               <p className="text-sm text-danger">
-                Verifikasi pabrik ditolak. Perbaiki data profil lalu hubungi Admin VMS.
+                Verifikasi pabrik ditolak. Perbaiki data profil lalu hubungi
+                Admin VMS.
               </p>
             )}
           </PanelBody>
@@ -125,15 +135,26 @@ export default async function FactoryDashboardPage() {
                   >
                     {grading ? <GradeChip grade={grading.grade} /> : null}
                     <div className="min-w-0 flex-1">
-                      <p className="font-mono text-sm font-medium text-ink">{batch.batch_code}</p>
+                      <p className="font-mono text-sm font-medium text-ink">
+                        {batch.batch_code}
+                      </p>
                       <p className="text-sm text-ink-muted">
                         {batch.material_categories?.name ?? "—"} ·{" "}
-                        {formatWeight(batch.claimed_weight_kg)} · {formatDate(batch.created_at)}
+                        {formatWeight(batch.claimed_weight_kg)} ·{" "}
+                        {formatDate(batch.created_at)}
                       </p>
                     </div>
                     {certificate ? (
                       <span className="font-mono text-xs text-ink-muted">
                         {certificate.certificate_code}
+                        {certificate.status === "issued" &&
+                        daysUntil(certificate.valid_until) > 0 ? (
+                          <span className="mt-1 block font-sans">
+                            {BATCH_FORM_TEXT.remainingDays(
+                              daysUntil(certificate.valid_until),
+                            )}
+                          </span>
+                        ) : null}
                       </span>
                     ) : null}
                     <BatchStatusBadge status={batch.status} />

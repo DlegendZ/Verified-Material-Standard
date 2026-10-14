@@ -5,7 +5,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NewBatchForm } from "./form";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
-import type { FactoryRow, MaterialCategoryRow } from "@/lib/types/db";
+import type {
+  FactoryRow,
+  MaterialCategoryRow,
+  MaterialFormProfileRow,
+} from "@/lib/types/db";
 
 export const metadata = { title: "Ajukan batch" };
 
@@ -23,9 +27,19 @@ export default async function NewBatchPage() {
     .from("material_categories")
     .select("*")
     .eq("is_active", true)
-    .order("status", { ascending: true })
-    .order("name", { ascending: true })
+    .order("sort_order", { ascending: true })
     .returns<MaterialCategoryRow[]>();
+
+  const { data: profiles } = await supabase
+    .from("material_form_profiles")
+    .select("*")
+    .eq("is_active", true)
+    .in(
+      "category_id",
+      (categories ?? []).map((c) => c.id),
+    )
+    .order("sort_order", { ascending: true })
+    .returns<MaterialFormProfileRow[]>();
 
   if (!factory) {
     return (
@@ -57,7 +71,7 @@ export default async function NewBatchPage() {
         </p>
       ) : null}
 
-      <NewBatchForm categories={categories ?? []} />
+      <NewBatchForm categories={categories ?? []} profiles={profiles ?? []} />
     </div>
   );
 }

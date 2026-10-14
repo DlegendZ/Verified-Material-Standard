@@ -1,5 +1,6 @@
 "use client";
 
+import { BATCH_FORM_TEXT } from "@/lib/text";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
@@ -9,20 +10,33 @@ import type { FactoryRow } from "@/lib/types/db";
 
 const initialState: ActionState = {};
 
-export function FactoryProfileForm({ factory }: { factory: FactoryRow | null }) {
-  const [state, formAction, pending] = useActionState(saveFactoryProfileAction, initialState);
+export function FactoryProfileForm({
+  factory,
+}: {
+  factory: FactoryRow | null;
+}) {
+  const [state, formAction, pending] = useActionState(
+    saveFactoryProfileAction,
+    initialState,
+  );
 
   return (
     <Panel>
       <PanelBody>
         <form action={formAction} className="space-y-4">
           {state.error ? (
-            <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+            <p
+              role="alert"
+              className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+            >
               {state.error}
             </p>
           ) : null}
           {state.ok ? (
-            <p role="status" className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok">
+            <p
+              role="status"
+              className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
+            >
               Profil pabrik tersimpan.
             </p>
           ) : null}
@@ -30,19 +44,44 @@ export function FactoryProfileForm({ factory }: { factory: FactoryRow | null }) 
           <Field
             label="Nama badan usaha"
             htmlFor="legalName"
-            hint="Sesuai dokumen resmi, misalnya PT Sentosa Textile."
+            hint={BATCH_FORM_TEXT.factoryNameHint}
             error={state.fieldErrors?.legalName}
             required
           >
-            <Input id="legalName" name="legalName" defaultValue={factory?.legal_name ?? ""} required />
+            <Input
+              id="legalName"
+              name="legalName"
+              defaultValue={factory?.legal_name ?? ""}
+              required
+            />
           </Field>
 
-          <Field label="Alamat" htmlFor="address" error={state.fieldErrors?.address} required>
-            <Textarea id="address" name="address" defaultValue={factory?.address ?? ""} required />
+          <Field
+            label="Alamat"
+            htmlFor="address"
+            error={state.fieldErrors?.address}
+            required
+          >
+            <Textarea
+              id="address"
+              name="address"
+              defaultValue={factory?.address ?? ""}
+              required
+            />
           </Field>
 
-          <Field label="Kota" htmlFor="city" error={state.fieldErrors?.city} required>
-            <Input id="city" name="city" defaultValue={factory?.city ?? ""} required />
+          <Field
+            label="Kota"
+            htmlFor="city"
+            error={state.fieldErrors?.city}
+            required
+          >
+            <Input
+              id="city"
+              name="city"
+              defaultValue={factory?.city ?? ""}
+              required
+            />
           </Field>
 
           <Field
