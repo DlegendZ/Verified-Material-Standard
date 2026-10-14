@@ -6,33 +6,38 @@ import { LandingMotion } from "@/components/landing-motion";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VerifyCodeForm } from "@/components/verify-code-form";
 import { Wordmark } from "@/components/wordmark";
-import { CRITERIA_EXPLAINER } from "@/lib/text";
+import { MaterialCategories } from "@/components/material-categories";
+import { loadPublicCategories } from "@/lib/public-categories";
+import { CRITERIA_EXPLAINER, PUBLIC_TEXT } from "@/lib/text";
 
 const STEPS = [
   {
     number: "01",
     image: "/illustrations/batch.svg",
     imageAlt: "Maskot VMS mencatat tumpukan material berwarna",
-    title: "Daftarkan batch",
-    body: "Pabrik mengajukan satu lot material beserta kategori, berat, foto, dan bukti asal-usul.",
+    title: PUBLIC_TEXT.workflow[0].title,
+    body: PUBLIC_TEXT.workflow[0].body,
   },
   {
     number: "02",
     image: "/illustrations/sampling.svg",
     imageAlt: "Maskot VMS memeriksa tiga lapisan material dengan kaca pembesar",
-    title: "Uji di 3 titik",
-    body: "Grader memeriksa sampel fisik dari bagian atas, tengah, dan bawah batch.",
+    title: PUBLIC_TEXT.workflow[1].title,
+    body: PUBLIC_TEXT.workflow[1].body,
   },
   {
     number: "03",
     image: "/illustrations/certificate.svg",
     imageAlt: "Maskot VMS menunjukkan ilustrasi sertifikat grade",
-    title: "Bagikan hasilnya",
-    body: "Admin menerbitkan sertifikat ber-QR setelah penilaian. Pembeli bisa mengeceknya tanpa akun.",
+    title: PUBLIC_TEXT.workflow[2].title,
+    body: PUBLIC_TEXT.workflow[2].body,
   },
 ];
 
-export default function LandingPage() {
+export const revalidate = 300;
+export default async function LandingPage() {
+  const categories = await loadPublicCategories();
+  const wood = categories.find((c) => c.code === "solid_wood");
   return (
     <div className="landing-page min-h-dvh bg-paper">
       <LandingMotion />
@@ -43,11 +48,17 @@ export default function LandingPage() {
           </Link>
           <nav
             aria-label="Navigasi beranda"
-            className="hidden items-center gap-9 text-sm text-ink-muted md:flex"
+            className="hidden items-center gap-6 text-sm text-ink-muted xl:flex"
           >
             <a href="#cara-kerja" className="hover:text-brand">
               Cara kerja
             </a>
+            <a href="#material" className="hover:text-brand">
+              {PUBLIC_TEXT.materialNav}
+            </a>
+            <Link href="/tentang" className="hover:text-brand">
+              {PUBLIC_TEXT.aboutNav}
+            </Link>
             <a href="#grade" className="hover:text-brand">
               Grade
             </a>
@@ -94,9 +105,7 @@ export default function LandingPage() {
                 </span>
               </h1>
               <p className="hero-description mt-7 max-w-[34rem] text-base leading-8 text-ink-muted sm:text-lg">
-                Bukti nyata di balik setiap batch limbah produksi. VMS memeriksa
-                sampel di tiga titik dan mengubah hasilnya menjadi grade yang
-                bisa diverifikasi siapa saja.
+                {PUBLIC_TEXT.heroDescription}
               </p>
               <div className="hero-actions mt-9 flex flex-wrap items-center gap-3">
                 <a
@@ -256,6 +265,7 @@ export default function LandingPage() {
           </ol>
         </section>
 
+        <MaterialCategories categories={categories} />
         <section
           id="grade"
           className="grade-section scroll-mt-20 py-20 sm:py-24"
@@ -266,7 +276,7 @@ export default function LandingPage() {
               className="mb-9 flex flex-wrap items-end justify-between gap-8 lg:mb-12"
             >
               <div>
-                <p className="section-eyebrow">HASIL YANG MUDAH DIBACA / 02</p>
+                <p className="section-eyebrow">{PUBLIC_TEXT.gradeEyebrow}</p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
                   Satu grade.
                   <br />
@@ -289,7 +299,7 @@ export default function LandingPage() {
               </div>
             </div>
             <div data-reveal>
-              <GradeExplorer />
+              <GradeExplorer gradeMeanings={wood?.grade_meanings} />
             </div>
           </div>
         </section>
@@ -299,7 +309,7 @@ export default function LandingPage() {
           className="mx-auto grid w-full max-w-7xl scroll-mt-20 gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:px-12 lg:py-24"
         >
           <div data-reveal>
-            <p className="section-eyebrow">DI BALIK ANGKA / 03</p>
+            <p className="section-eyebrow">{PUBLIC_TEXT.criteriaEyebrow}</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
               Bukan sekadar label.
             </h2>
@@ -381,6 +391,26 @@ export default function LandingPage() {
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-8 sm:px-8 lg:px-12">
           <Wordmark />
           <div className="text-right">
+            <nav className="mb-3 flex flex-wrap justify-end gap-x-5 gap-y-2 text-sm text-brand">
+              <a
+                href="#material"
+                className="inline-flex min-h-11 items-center underline"
+              >
+                {PUBLIC_TEXT.materialNav}
+              </a>
+              <Link
+                href="/tentang"
+                className="inline-flex min-h-11 items-center underline"
+              >
+                {PUBLIC_TEXT.aboutNav}
+              </Link>
+              <Link
+                href="/proses-keberatan"
+                className="inline-flex min-h-11 items-center underline"
+              >
+                {PUBLIC_TEXT.objectionNav}
+              </Link>
+            </nav>
             <p className="text-sm font-semibold text-ink">
               Material punya cerita. Kami bantu membacanya.
             </p>

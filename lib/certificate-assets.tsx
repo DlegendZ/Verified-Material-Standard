@@ -9,7 +9,14 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import { verificationUrl } from "./certificate";
-import { GRADE_MEANING } from "./text";
+import {
+  GRADE_MEANING,
+  CERTIFICATE_PDF_TEXT,
+  PUBLIC_TEXT,
+  REVISION_TEXT,
+  APP,
+} from "./text";
+import { formatValidity } from "./format";
 import type { GradeDb } from "./types/db";
 
 /**
@@ -30,6 +37,12 @@ export interface CertificatePdfData {
   factoryName: string;
   factoryCity: string;
   categoryName: string;
+  formProfileName?: string | null;
+  declaredMaterialType?: string | null;
+  gradeMeaning?: string | null;
+  certificateValidityDays?: number | null;
+  claimBoundary?: string | null;
+  thresholdDisclaimer?: string | null;
   batchCode: string;
   lotNumber: string | null;
   claimedWeightKg: number;
@@ -61,11 +74,20 @@ function formatId(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 10, color: "#0F1613", backgroundColor: "#FFFFFF" },
+  page: {
+    padding: 40,
+    fontSize: 10,
+    color: "#0F1613",
+    backgroundColor: "#FFFFFF",
+  },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -87,20 +109,20 @@ const styles = StyleSheet.create({
   docTitle: { fontSize: 13, textAlign: "right" },
   docSub: { fontSize: 9, color: "#56605A", textAlign: "right", marginTop: 2 },
 
-  gradeRow: { flexDirection: "row", marginTop: 22 },
+  gradeRow: { flexDirection: "row", marginTop: 18 },
   gradeBox: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     alignItems: "center",
     justifyContent: "center",
   },
-  gradeLetter: { color: "#FFFFFF", fontSize: 64 },
+  gradeLetter: { color: "#FFFFFF", fontSize: 56 },
   gradeMeta: { flex: 1, paddingLeft: 18, justifyContent: "center" },
   gradeMeaning: { fontSize: 20 },
   gradeScore: { fontSize: 11, color: "#56605A", marginTop: 4 },
   code: { fontSize: 14, marginTop: 10, letterSpacing: 1 },
 
-  section: { marginTop: 22 },
+  section: { marginTop: 18 },
   sectionTitle: {
     fontSize: 10,
     borderBottomWidth: 1,
@@ -115,14 +137,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: "#D8DED6",
   },
-  label: { color: "#56605A" },
-  value: { textAlign: "right" },
+  label: { color: "#56605A", maxWidth: "48%" },
+  value: { textAlign: "right", maxWidth: "52%" },
 
-  twoCol: { flexDirection: "row", marginTop: 22 },
+  twoCol: { flexDirection: "row", marginTop: 18 },
   colLeft: { flex: 1, paddingRight: 18 },
-  colRight: { width: 150, alignItems: "center" },
-  qr: { width: 130, height: 130 },
-  qrCaption: { fontSize: 8, color: "#56605A", marginTop: 6, textAlign: "center" },
+  colRight: { width: 126, alignItems: "center" },
+  qr: { width: 108, height: 108 },
+  qrCaption: {
+    fontSize: 8,
+    color: "#56605A",
+    marginTop: 6,
+    textAlign: "center",
+  },
 
   footer: {
     position: "absolute",
@@ -132,7 +159,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#B6BFB6",
     paddingTop: 8,
-    fontSize: 8,
+    fontSize: 7.5,
     color: "#56605A",
   },
 });
@@ -157,18 +184,32 @@ function CertificateDocument({
           </View>
           <View>
             <Text style={styles.docTitle}>Sertifikat Grade Material</Text>
-            <Text style={styles.docSub}>Penilaian per batch, berbasis sampling 3 titik</Text>
+            <Text style={styles.docSub}>
+              Penilaian per batch, berbasis sampling 3 titik
+            </Text>
           </View>
         </View>
 
         <View style={styles.gradeRow}>
-          <View style={[styles.gradeBox, { backgroundColor: GRADE_HEX[data.grade] }]}>
+          <View
+            style={[
+              styles.gradeBox,
+              { backgroundColor: GRADE_HEX[data.grade] },
+            ]}
+          >
             <Text style={styles.gradeLetter}>{data.grade}</Text>
           </View>
           <View style={styles.gradeMeta}>
             <Text style={styles.gradeMeaning}>{GRADE_MEANING[data.grade]}</Text>
-            <Text style={styles.gradeScore}>Skor akhir {data.finalScore} dari 100</Text>
+            <Text style={styles.gradeScore}>
+              Skor akhir {data.finalScore} dari 100
+            </Text>
             <Text style={styles.code}>{data.certificateCode}</Text>
+            {data.gradeMeaning ? (
+              <Text style={{ fontSize: 9, lineHeight: 1.3, marginTop: 6 }}>
+                {data.gradeMeaning}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -179,6 +220,12 @@ function CertificateDocument({
               ["Pabrik", data.factoryName],
               ["Kota", data.factoryCity],
               ["Kategori material", data.categoryName],
+              ...(data.formProfileName
+                ? [[PUBLIC_TEXT.form, data.formProfileName]]
+                : []),
+              ...(data.declaredMaterialType
+                ? [[PUBLIC_TEXT.declaredMaterial, data.declaredMaterialType]]
+                : []),
               ["Kode batch", data.batchCode],
               ["Nomor lot", data.lotNumber ?? "—"],
               ["Klaim berat", `${data.claimedWeightKg} kg`],
@@ -196,7 +243,9 @@ function CertificateDocument({
             {/* Image di sini milik @react-pdf/renderer, bukan <img> DOM — tidak punya prop alt. */}
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image style={styles.qr} src={qrDataUrl} />
-            <Text style={styles.qrCaption}>Pindai untuk memverifikasi keaslian sertifikat</Text>
+            <Text style={styles.qrCaption}>
+              Pindai untuk memverifikasi keaslian sertifikat
+            </Text>
           </View>
         </View>
 
@@ -218,6 +267,14 @@ function CertificateDocument({
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Masa berlaku</Text>
+          {data.certificateValidityDays ? (
+            <Text style={{ fontSize: 9, marginBottom: 4 }}>
+              {REVISION_TEXT.validity(
+                data.categoryName,
+                formatValidity(data.certificateValidityDays),
+              )}
+            </Text>
+          ) : null}
           <View style={styles.row}>
             <Text style={styles.label}>Diterbitkan</Text>
             <Text style={styles.value}>{formatId(data.issuedAt)}</Text>
@@ -229,18 +286,25 @@ function CertificateDocument({
         </View>
 
         <Text style={styles.footer}>
-          Penilaian berbasis sampling 3 titik (Atas, Tengah, Bawah) oleh grader VMS, bukan inspeksi
-          100% terhadap seluruh isi batch. Sertifikat menilai kondisi batch pada saat sampling. VMS
-          tidak menjual material dan tidak memegang transaksi. Cek status terkini di{" "}
-          {verificationUrl(data.certificateCode)}
+          {CERTIFICATE_PDF_TEXT.footer} {data.claimBoundary ?? ""}{" "}
+          {data.thresholdDisclaimer ?? ""}
+          {"\n"}
+          {data.gradeMeaning ? REVISION_TEXT.gradeMeaningNote : ""}{" "}
+          {APP.demoNotice}
+          {"\n"}
+          {CERTIFICATE_PDF_TEXT.verify} {verificationUrl(data.certificateCode)}
         </Text>
       </Page>
     </Document>
   );
 }
 
-export async function renderCertificatePdf(data: CertificatePdfData): Promise<Buffer> {
+export async function renderCertificatePdf(
+  data: CertificatePdfData,
+): Promise<Buffer> {
   const qrPng = await renderQrPng(data.certificateCode);
   const qrDataUrl = `data:image/png;base64,${qrPng.toString("base64")}`;
-  return renderToBuffer(<CertificateDocument data={data} qrDataUrl={qrDataUrl} />);
+  return renderToBuffer(
+    <CertificateDocument data={data} qrDataUrl={qrDataUrl} />,
+  );
 }

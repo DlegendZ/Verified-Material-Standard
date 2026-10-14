@@ -11,7 +11,13 @@ import { ERRORS } from "@/lib/text";
  * Penerbitan sertifikat hanya tersedia untuk grade A/B/C. Untuk grade D tombol
  * terbit sengaja tidak dirender — server juga menolaknya (kriteria A4).
  */
-export function IssueButtons({ batchId, grade }: { batchId: string; grade: GradeDb }) {
+export function IssueButtons({
+  batchId,
+  grade,
+}: {
+  batchId: string;
+  grade: GradeDb;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -46,7 +52,11 @@ export function IssueButtons({ batchId, grade }: { batchId: string; grade: Grade
           <p className="border border-warning bg-warning-soft px-3 py-2 text-sm text-warning">
             {ERRORS.gradeDNotCertifiable}
           </p>
-          <Button variant="outline" onClick={markNotCertified} disabled={pending}>
+          <Button
+            variant="outline"
+            onClick={markNotCertified}
+            disabled={pending}
+          >
             {pending ? "Menyimpan…" : "Tandai tidak lolos"}
           </Button>
         </>
@@ -57,12 +67,18 @@ export function IssueButtons({ batchId, grade }: { batchId: string; grade: Grade
       )}
 
       {message ? (
-        <p role="status" className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok">
+        <p
+          role="status"
+          className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
+        >
           {message}
         </p>
       ) : null}
       {error ? (
-        <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {error}
         </p>
       ) : null}

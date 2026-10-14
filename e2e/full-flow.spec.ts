@@ -21,12 +21,26 @@ test("pabrik bisa menyimpan draft batch", async ({ page }) => {
   await expect(page).toHaveURL(/\/factory/);
 
   await page.goto("/factory/batches/new");
-  await page.getByRole("radio", { name: "Tekstil" }).check();
-  await page.getByLabel("Klaim berat (kg)").fill("120");
-  await page.getByRole("button", { name: "Lanjut ke detail" }).click();
-  await page.getByLabel("Klaim spesifikasi").fill("Kain perca katun uji e2e");
+  await page.getByRole("radio", { name: /Kayu Solid/ }).check();
+  await page.getByRole("radio", { name: /Batang berikat/ }).check();
+  await page.getByRole("button", { name: "Lanjut", exact: true }).click();
+  await page.getByLabel("Jenis kayu yang dideklarasikan").fill("Pinus");
+  await page.getByLabel("Berat total (kg)").fill("400");
+  for (const [label, value] of [
+    ["Jumlah ikat", "20"],
+    ["Isi batang per ikat", "20"],
+    ["Lebar penampang (cm)", "3"],
+    ["Tebal penampang (cm)", "4"],
+    ["Panjang (cm)", "100"],
+    ["Toleransi penampang (±cm)", "0,2"],
+    ["Toleransi panjang (±cm)", "1"],
+  ])
+    await page.getByLabel(label, { exact: false }).fill(value);
+  await page.getByRole("button", { name: "Lanjut", exact: true }).click();
+  await page.getByRole("button", { name: "Lanjut", exact: true }).click();
+  for (const checkbox of await page.getByRole("checkbox").all())
+    await checkbox.check();
   await page.getByRole("button", { name: "Simpan draft batch" }).click();
-
   await expect(page).toHaveURL(/\/factory\/batches\//);
   await expect(page.getByText("Draft")).toBeVisible();
 });
@@ -35,16 +49,22 @@ test("admin melihat antrian kerjanya", async ({ page }) => {
   await signIn(page, "admin@vms.demo");
   await expect(page).toHaveURL(/\/admin/);
 
-  await expect(page.getByRole("heading", { name: "Dashboard admin" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Dashboard admin" }),
+  ).toBeVisible();
   await expect(page.getByText("Pabrik menunggu verifikasi")).toBeVisible();
-  await expect(page.getByText("Hasil penilaian menunggu penerbitan")).toBeVisible();
+  await expect(
+    page.getByText("Hasil penilaian menunggu penerbitan"),
+  ).toBeVisible();
 });
 
 test("grader melihat antrian penugasan", async ({ page }) => {
   await signIn(page, "grader@vms.demo");
   await expect(page).toHaveURL(/\/grader/);
 
-  await expect(page.getByRole("heading", { name: "Antrian penugasan" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Antrian penugasan" }),
+  ).toBeVisible();
 });
 
 test("pabrik tidak bisa membuka area admin", async ({ page }) => {

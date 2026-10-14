@@ -15,14 +15,20 @@ export function AssignGraderForm({
   batchId: string;
   graders: { id: string; full_name: string }[];
 }) {
-  const [state, formAction, pending] = useActionState(assignGraderAction, initialState);
+  const [state, formAction, pending] = useActionState(
+    assignGraderAction,
+    initialState,
+  );
 
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="batchId" value={batchId} />
 
       {state.error ? (
-        <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {state.error}
         </p>
       ) : null}

@@ -37,16 +37,24 @@ export default async function AdminFactoriesPage() {
             <PanelHeader
               title={factory.legal_name}
               description={factory.city}
-              action={<FactoryStatusBadge status={factory.verification_status} />}
+              action={
+                <FactoryStatusBadge status={factory.verification_status} />
+              }
             />
             <PanelBody className="space-y-4">
               <dl>
                 <DataRow label="Alamat" value={factory.address} />
                 <DataRow label="Kontak" value={factory.contact_person} />
                 <DataRow label="Telepon" value={factory.contact_phone} mono />
-                <DataRow label="Didaftarkan" value={formatDate(factory.created_at)} />
+                <DataRow
+                  label="Didaftarkan"
+                  value={formatDate(factory.created_at)}
+                />
                 {factory.verified_at ? (
-                  <DataRow label="Diverifikasi" value={formatDate(factory.verified_at)} />
+                  <DataRow
+                    label="Diverifikasi"
+                    value={formatDate(factory.verified_at)}
+                  />
                 ) : null}
               </dl>
 

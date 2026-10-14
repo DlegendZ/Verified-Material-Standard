@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
-import { GRADE_DESCRIPTION, GRADE_MEANING } from "@/lib/text";
+import {
+  GRADE_DESCRIPTION,
+  GRADE_MEANING,
+  PUBLIC_TEXT,
+  PUBLIC_CATEGORY_FALLBACK,
+  REVISION_TEXT,
+} from "@/lib/text";
 import type { GradeDb } from "@/lib/types/db";
 
 const GRADES: { grade: GradeDb; range: string; start: number; end: number }[] =
@@ -13,7 +19,15 @@ const GRADES: { grade: GradeDb; range: string; start: number; end: number }[] =
     { grade: "D", range: "di bawah 55", start: 0, end: 55 },
   ];
 
-export function GradeExplorer() {
+export function GradeExplorer({
+  gradeMeanings,
+}: {
+  gradeMeanings?: Record<GradeDb, string> | null;
+}) {
+  const meanings =
+    gradeMeanings ??
+    PUBLIC_CATEGORY_FALLBACK.find((c) => c.code === "solid_wood")
+      ?.grade_meanings;
   const [selectedGrade, setSelectedGrade] = useState<GradeDb>("B");
   const selected = GRADES.find((item) => item.grade === selectedGrade)!;
 
@@ -57,6 +71,19 @@ export function GradeExplorer() {
             <span className="grade-display-label">GRADE {selectedGrade}</span>
             <h3>{GRADE_MEANING[selectedGrade]}</h3>
             <p>{GRADE_DESCRIPTION[selectedGrade]}</p>
+            {meanings ? (
+              <div className="mt-5 border-t border-current/20 pt-4">
+                <p className="text-sm font-semibold">
+                  {PUBLIC_TEXT.woodGradeTitle}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed">
+                  {meanings[selectedGrade]}
+                </p>
+                <p className="mt-3 text-xs leading-relaxed opacity-90">
+                  {REVISION_TEXT.gradeMeaningNote}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="grade-display-bottom">

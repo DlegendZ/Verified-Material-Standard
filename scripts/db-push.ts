@@ -20,6 +20,7 @@ const DEFAULT_FILES = [
   "supabase/migrations/0001_init.sql",
   "supabase/migrations/0002_rls.sql",
   "supabase/migrations/0003_grading_results_delete.sql",
+  "supabase/migrations/0004_kayu_solid_pilot.sql",
   "supabase/seed.sql",
 ];
 
@@ -34,7 +35,9 @@ async function main() {
 
   const client = new Client({
     connectionString,
-    ssl: connectionString.includes("localhost") ? undefined : { rejectUnauthorized: false },
+    ssl: connectionString.includes("localhost")
+      ? undefined
+      : { rejectUnauthorized: false },
   });
 
   const argFiles = process.argv.slice(2).filter((arg) => arg.endsWith(".sql"));
@@ -50,7 +53,9 @@ async function main() {
       await client.query(sql);
       console.log("selesai");
     }
-    console.log("\nSkema dan data referensi siap. Lanjutkan dengan: npm run seed:demo");
+    console.log(
+      "\nSkema dan data referensi siap. Lanjutkan dengan: npm run seed:demo",
+    );
   } finally {
     await client.end();
   }

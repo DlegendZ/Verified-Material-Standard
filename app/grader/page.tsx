@@ -60,9 +60,14 @@ export default async function GraderQueuePage() {
             return (
               <li key={assignment.id}>
                 <Panel className="transition-colors hover:border-line-strong">
-                  <Link href={`/grader/batches/${batch.id}`} className="block px-4 py-4">
+                  <Link
+                    href={`/grader/batches/${batch.id}`}
+                    className="block px-4 py-4"
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="font-mono text-sm font-medium text-ink">{batch.batch_code}</p>
+                      <p className="font-mono text-sm font-medium text-ink">
+                        {batch.batch_code}
+                      </p>
                       <BatchStatusBadge status={batch.status} />
                     </div>
 
@@ -72,9 +77,13 @@ export default async function GraderQueuePage() {
 
                     <div className="mt-2 space-y-1 text-sm text-ink-muted">
                       <p className="flex items-start gap-2">
-                        <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <MapPin
+                          className="mt-0.5 size-4 shrink-0"
+                          aria-hidden
+                        />
                         <span>
-                          {batch.factories?.address ?? "—"}, {batch.factories?.city ?? "—"}
+                          {batch.factories?.address ?? "—"},{" "}
+                          {batch.factories?.city ?? "—"}
                         </span>
                       </p>
                       <p className="flex items-center gap-2">

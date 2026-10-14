@@ -20,7 +20,10 @@ export function CategoryWeightsForm({
   categoryId: string;
   criteria: CategoryCriterionRow[];
 }) {
-  const [state, formAction, pending] = useActionState(updateCategoryWeightsAction, initialState);
+  const [state, formAction, pending] = useActionState(
+    updateCategoryWeightsAction,
+    initialState,
+  );
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(criteria.map((row) => [row.id, String(row.weight_pct)])),
   );
@@ -29,7 +32,8 @@ export function CategoryWeightsForm({
     const result: Record<string, number> = {};
     for (const row of criteria) {
       const value = Number(values[row.id]?.replace(",", ".") ?? 0);
-      result[row.criterion] = (result[row.criterion] ?? 0) + (Number.isFinite(value) ? value : 0);
+      result[row.criterion] =
+        (result[row.criterion] ?? 0) + (Number.isFinite(value) ? value : 0);
     }
     return result;
   }, [criteria, values]);
@@ -39,12 +43,18 @@ export function CategoryWeightsForm({
       <input type="hidden" name="categoryId" value={categoryId} />
 
       {state.error ? (
-        <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {state.error}
         </p>
       ) : null}
       {state.ok ? (
-        <p role="status" className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok">
+        <p
+          role="status"
+          className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
+        >
           {state.message ?? "Tersimpan."}
         </p>
       ) : null}
@@ -70,7 +80,8 @@ export function CategoryWeightsForm({
                   {row.label}
                   {row.is_odor ? (
                     <span className="block text-xs text-ink-muted">
-                      Sub-kriteria bau · cap override {row.odor_override_cap ?? 40}
+                      Sub-kriteria bau · cap override{" "}
+                      {row.odor_override_cap ?? 40}
                     </span>
                   ) : null}
                 </label>
@@ -80,7 +91,10 @@ export function CategoryWeightsForm({
                   inputMode="decimal"
                   value={values[row.id] ?? ""}
                   onChange={(event) =>
-                    setValues((prev) => ({ ...prev, [row.id]: event.target.value }))
+                    setValues((prev) => ({
+                      ...prev,
+                      [row.id]: event.target.value,
+                    }))
                   }
                   className="h-10 w-20 rounded-[3px] border border-line-strong bg-surface px-2 text-right font-mono tabular text-ink"
                 />

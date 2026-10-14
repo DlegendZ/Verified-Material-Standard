@@ -6,7 +6,13 @@ import { Button } from "@/components/ui/button";
 import { submitBatchAction } from "../../actions";
 
 /** Mengirim batch ke antrian Admin. Setelah dikirim, berkas tidak bisa diubah. */
-export function SubmitBatchButton({ batchId, disabled }: { batchId: string; disabled?: boolean }) {
+export function SubmitBatchButton({
+  batchId,
+  disabled,
+}: {
+  batchId: string;
+  disabled?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

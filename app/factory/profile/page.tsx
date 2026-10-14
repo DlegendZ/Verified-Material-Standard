@@ -21,12 +21,17 @@ export default async function FactoryProfilePage() {
       <PageHeader
         title="Profil pabrik"
         description="Data ini dipakai Admin untuk memverifikasi pabrik, dan sebagian tampil di halaman verifikasi publik."
-        action={factory ? <FactoryStatusBadge status={factory.verification_status} /> : null}
+        action={
+          factory ? (
+            <FactoryStatusBadge status={factory.verification_status} />
+          ) : null
+        }
       />
       <FactoryProfileForm factory={factory ?? null} />
       <p className="mt-4 text-sm text-ink-muted">
-        Yang tampil ke publik hanya nama badan usaha dan kota. Alamat lengkap, nama kontak, dan
-        nomor telepon tidak pernah ditampilkan di halaman verifikasi.
+        Yang tampil ke publik hanya nama badan usaha dan kota. Alamat lengkap,
+        nama kontak, dan nomor telepon tidak pernah ditampilkan di halaman
+        verifikasi.
       </p>
     </div>
   );

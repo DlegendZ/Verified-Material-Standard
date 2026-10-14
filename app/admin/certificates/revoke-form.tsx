@@ -12,7 +12,10 @@ const initialState: ActionState = {};
  * menampilkannya — pembeli berhak tahu kenapa sertifikat tidak berlaku.
  */
 export function RevokeForm({ certificateId }: { certificateId: string }) {
-  const [state, formAction, pending] = useActionState(revokeCertificateAction, initialState);
+  const [state, formAction, pending] = useActionState(
+    revokeCertificateAction,
+    initialState,
+  );
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -28,7 +31,10 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
       <input type="hidden" name="certificateId" value={certificateId} />
 
       {state.error ? (
-        <p role="alert" className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger">
+        <p
+          role="alert"
+          className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
+        >
           {state.error}
         </p>
       ) : null}
@@ -39,14 +45,24 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
         hint="Contoh: batch terkena hujan sebelum terjual sehingga kondisinya berubah signifikan."
         required
       >
-        <Textarea id={`reason-${certificateId}`} name="reason" required minLength={10} />
+        <Textarea
+          id={`reason-${certificateId}`}
+          name="reason"
+          required
+          minLength={10}
+        />
       </Field>
 
       <div className="flex gap-2">
         <Button type="submit" variant="danger" size="sm" disabled={pending}>
           {pending ? "Mencabut…" : "Cabut sertifikat"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(false)}
+        >
           Batal
         </Button>
       </div>

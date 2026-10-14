@@ -140,6 +140,128 @@ Akun demo dibuat lewat SQL. GoTrue membaca `confirmation_token`, `recovery_token
 login ditolak dengan pesan "Email atau kata sandi salah" walau password benar. `seed.sql` mengisi
 semuanya dengan `''` dan menormalkan baris lama.
 
+
+## A19 — Profil bentuk per kategori
+
+Profil bentuk disimpan di tabel baru `material_form_profiles` (per kategori), dipilih pabrik saat mengajukan batch (`batches.form_profile_id`).
+
+Alasan: GS §11 template profil: material baru = tambah data, bukan ubah kode.
+
+## A20 — Metode skoring dan ukur sebagai data
+
+Tiap sub-kriteria punya `scoring_method` (`scale` | `unit_count`) dan `requires_measurement_method` sebagai **data** di `category_criteria`. Konversi "% unit lolos → skor" dilakukan **engine** memakai tabel GS §7 yang sama dengan akurasi spesifikasi.
+
+Alasan: Satu rumus, satu tempat; grader tidak menghitung manual.
+
+## A21 — Deviasi terbesar dari berat dan hitungan
+
+Deviasi kuantitas = **maksimum** dari deviasi berat dan semua deviasi hitungan (isi per ikat per titik, + jumlah ikat bila dihitung). Rumus deviasi `abs(klaim − aktual) × 100 / klaim` (kali dulu baru bagi) supaya batas 2/5/10% tepat tanpa galat float.
+
+Alasan: GS §7 & §10 ("dipakai selisih terbesar", "batas atas inklusif").
+
+## A22 — Masa berlaku per kategori
+
+Masa berlaku disimpan di `material_categories.certificate_validity_days`. Env `CERTIFICATE_VALIDITY_DAYS` **dihapus**. Penerbitan ditolak bila nilainya NULL.
+
+Alasan: P4: tidak boleh di-generalize.
+
+## A23 — Arti grade per material
+
+Arti grade per material disimpan di `material_categories.grade_meanings` (jsonb `{A,B,C,D}`) dan ditampilkan di halaman publik, PDF, landing, dashboard pabrik, review admin. Label generik (Premium/Standard/Ekonomis/Tidak lolos) tetap dipakai sebagai judul.
+
+Alasan: GS §9: tabel per material yang ditampilkan ke user.
+
+## A24 — Klaim terstruktur dan ringkasan otomatis
+
+Klaim spesifikasi terstruktur disimpan di `batches.claimed_spec_detail` (jsonb, divalidasi Zod per profil). `batches.claimed_spec` (teks) tetap ada dan diisi **otomatis** dari detail (ringkasan satu baris) supaya halaman lama & publik tetap bekerja.
+
+Alasan: Kontrak kolom SRD Bab 5 tidak boleh dihapus.
+
+## A25 — RPC kategori publik dengan fallback
+
+Landing page membaca daftar kategori lewat fungsi `public_categories()` `SECURITY DEFINER` (anon hanya `EXECUTE`), dengan fallback statis bila Supabase tidak terjangkau.
+
+Alasan: Pola A5: tidak ada policy SELECT anon ke tabel.
+
+## A26 — Kategori lama nonaktif dan riwayat tetap
+
+Kategori lama dinonaktifkan (`is_active=false`), tidak dihapus; semua query UI memfilter `is_active = true`.
+
+Alasan: P3; riwayat & FK aman.
+
+## A27 — Kompatibilitas breakdown 1.x
+
+UI wajib tetap bisa merender `breakdown_json` versi rumus 1.x (sertifikat lama non-demo, kalau ada). Field baru di breakdown v2 diperlakukan opsional saat render.
+
+Alasan: Sertifikat terbit tidak boleh rusak (SRD Bab 4.3).
+
+## A28 — Keberatan hanya layar konsep
+
+Halaman keberatan statis di route publik `/proses-keberatan`, ditautkan dari `/tentang`, halaman publik sertifikat, dan detail batch pabrik.
+
+Alasan: P5.
+
+## A29 — Draft grading versi dua
+
+Kunci draft wizard grader di localStorage dinaikkan ke `vms-grading-v2-<batchId>`; draft lama diabaikan.
+
+Alasan: Bentuk draft berubah; mencegah crash restore.
+
+## A30 — Jumlah unit sesuai profil sampling
+
+Bila profil bentuk diberikan ke engine, engine memvalidasi jumlah unit yang diperiksa per titik = `units_per_point` profil.
+
+Alasan: GS §3: "angkanya sama untuk setiap batch".
+
+## A31 — Deklarasi intake wajib
+
+Deklarasi intake pabrik (sumber material & syarat Non-B3 tambahan) berupa checkbox wajib di form batch, disimpan di `batches.intake_declarations`. Deklarasi **bukan pengganti gate**; grader tetap menjalankan 3 gate.
+
+Alasan: GS §1 & §11.1.
+
+## A32 — Kontaminasi kimia ditolak tanpa toleransi
+
+**(Direvisi v1.3.1, mengikuti P12.)** Kontaminasi kimia Kayu Solid ditangani **hanya** oleh gerbang Non-B3, dengan ambang nol: tanda pengawetan kimia, sisa cat/lem/pernis/pelarut/oli sekecil apa pun, atau bau bahan kimia → gate gagal. Sub-kriteria `foreign_contaminant` dilabeli "Kontaminan benda asing (paku/sekrup tertanam)" dan hanya menilai paku, sekrup, atau logam lain yang tertanam. Bau Level 3 Kayu Solid = jamur/busuk saja. Data teks di 7.3.1; aturan lengkap Bab 3.4.
+
+Alasan: GS §2 "ragu → tolak" & §11.1 syarat Non-B3 menang atas daftar cacat per unit, karena gerbang dijalankan sebelum skoring dan tidak ada ambang "ringan" yang tertulis. Grader tidak perlu menebak batas.
+
+## A33 — Badge canvas sebagai backlog opsional
+
+Badge (Fase 13) dirender di browser dengan `<canvas>` + `qrcode.toCanvas`, diunduh sebagai PNG; tidak menambah dependensi pengolah gambar.
+
+Alasan: Marketplace menerima PNG/JPG; menjaga dependensi tipis (A13).
+
+Status: Fase 13 opsional **belum dikerjakan**; ini keputusan untuk backlog.
+
+## A34 — Rumus versi 2.0.0
+
+`SCORING_VERSION` naik ke `2.0.0` (bentuk input & breakdown berubah).
+
+Alasan: Aturan di `lib/scoring/rules.ts`.
+
+## A35 — Temuan Non-B3 setelah gerbang dan konfirmasi ulang
+
+**Temuan Non-B3 setelah gerbang lolos:** wizard punya tombol "Tolak batch — temuan Non-B3" (aksi server baru `rejectNonB3FindingAction`, tanpa migrasi DB) yang mengubah `gate_checks.non_b3_pass` → false, menambah catatan temuan, batch → `rejected_gate`, assignment → `submitted`, audit `batch.gate_rejected_late`, dan menghapus draft wizard. Hanya bisa dipakai selama batch `grading` dan belum ada `grading_results`. Sebelum kirim hasil, grader **wajib** mencentang konfirmasi ulang Non-B3 (`nonB3Reconfirmed: true`, disimpan di payload audit `grading.submitted`).
+
+Alasan: Ikat baru dibuka saat sampling, jadi kontaminasi bisa baru terlihat setelah gerbang. Tanpa jalur ini grader terpaksa menilainya di sub-kriteria, padahal itu dilarang P12.
+
+## A36 — Ringkasan klaim menerima berat total sebagai parameter keempat
+
+`claimedSpecSummary(detail, profile, declaredMaterialType, claimedWeightKg)` menerima berat
+total dari kolom batch secara eksplisit. Bentuk JSON klaim di Bab 7.4.2 tidak memuat berat,
+sementara keluaran Bab 7.4.3 wajib menampilkan total kg. Berat tidak diduplikasi ke JSON klaim.
+
+Alasan: satu sumber berat dan format ringkasan persis contoh dokumen.
+
+## A37 — Helper ringkasan klaim dipisahkan ke modul yang aman di browser
+
+Implementasi `claimedSpecSummary` ada di `lib/claims.ts` dan diekspor ulang dari
+`lib/certificate.ts`. Form pabrik mengimpor modul browser tersebut. Modul certificate
+mengimpor `node:crypto` untuk kode sertifikat, sehingga tidak boleh diimpor form client.
+
+Alasan: pratinjau browser dan ringkasan server memakai fungsi yang sama tanpa membawa crypto
+ke bundel browser.
+
 ---
 
 ## Blocker yang butuh DevOps (tidak dikerjakan agent, sesuai SRD Bab 12)

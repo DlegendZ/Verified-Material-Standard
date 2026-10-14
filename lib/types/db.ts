@@ -15,6 +15,9 @@ export type AssignmentStatus = "open" | "in_progress" | "submitted";
 export type DocumentKind = "origin_doc" | "lab_test" | "other";
 export type GradeDb = "A" | "B" | "C" | "D";
 export type CertificateStatus = "issued" | "revoked" | "superseded";
+export type ScoringMethodDb = "scale" | "unit_count";
+export type MeasurementMethodDb = "moisture_meter" | "touch_estimate";
+export type ClaimModeDb = "bundle" | "weight";
 
 /** Lifecycle batch, SRD Bab 5.2. */
 export type BatchStatus =
@@ -58,6 +61,14 @@ export interface MaterialCategoryRow {
   status: CategoryStatusDb;
   notes: string | null;
   created_at: string;
+  sort_order: number;
+  short_description: string | null;
+  certificate_validity_days: number | null;
+  grade_meanings: Record<GradeDb, string> | null;
+  odor_level3_hint: string | null;
+  non_b3_extra: string | null;
+  claim_boundary: string | null;
+  threshold_disclaimer: string | null;
 }
 
 export interface CategoryCriterionRow {
@@ -70,6 +81,25 @@ export interface CategoryCriterionRow {
   is_odor: boolean;
   odor_override_cap: number | null;
   sort_order: number;
+  scoring_method: ScoringMethodDb;
+  requires_measurement_method: boolean;
+  help_text: string | null;
+}
+
+export interface MaterialFormProfileRow {
+  id: string;
+  category_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  point_definition: string;
+  unit_label: string;
+  units_per_point: number;
+  sampling_notes: string | null;
+  claim_mode: ClaimModeDb;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface BatchRow {
@@ -79,6 +109,15 @@ export interface BatchRow {
   batch_code: string;
   claimed_weight_kg: number;
   claimed_spec: string | null;
+  form_profile_id: string | null;
+  declared_material_type: string | null;
+  claimed_spec_detail: import("../validation/schemas").ClaimedSpecDetail | null;
+  intake_declarations: {
+    sourceIsProductionResidue: boolean;
+    noChemicalTreatment: boolean;
+    singleForm: boolean;
+    declaredAt: string;
+  } | null;
   production_date: string | null;
   lot_number: string | null;
   description: string | null;
@@ -138,6 +177,9 @@ export interface SampleScoreRow {
   criterion: CriterionDb;
   sub_key: string;
   raw_score: number;
+  units_checked: number | null;
+  units_passed: number | null;
+  measurement_method: MeasurementMethodDb | null;
 }
 
 export interface QuantityCheckRow {
@@ -146,6 +188,10 @@ export interface QuantityCheckRow {
   actual_weight_kg: number;
   spec_match_pct: number;
   notes: string | null;
+  count_checks: import("../scoring/types").CountCheckInput[];
+  spec_units_checked: number | null;
+  spec_units_passed: number | null;
+  weighing_moisture_note: string | null;
 }
 
 export interface DocumentationCheckRow {
@@ -222,8 +268,31 @@ export interface PublicCertificate {
     claimed_spec: string | null;
     lot_number: string | null;
     production_date: string | null;
+    declared_material_type: string | null;
+    form_profile: { code: string; name: string; unit_label: string } | null;
   };
   factory: { legal_name: string; city: string };
-  category: { code: string; name: string };
-  photos: { file_path: string; sample_point: SamplePointDb | null; angle_label: string | null }[];
+  category: {
+    code: string;
+    name: string;
+    grade_meanings: Record<GradeDb, string> | null;
+    claim_boundary: string | null;
+    threshold_disclaimer: string | null;
+    certificate_validity_days: number | null;
+  };
+  photos: {
+    file_path: string;
+    sample_point: SamplePointDb | null;
+    angle_label: string | null;
+  }[];
+}
+
+export interface PublicCategory {
+  code: string;
+  name: string;
+  status: CategoryStatusDb;
+  short_description: string | null;
+  certificate_validity_days: number | null;
+  grade_meanings: Record<GradeDb, string> | null;
+  profiles: { code: string; name: string; description: string | null }[];
 }

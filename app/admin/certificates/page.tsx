@@ -8,13 +8,22 @@ import { RevokeForm } from "./revoke-form";
 import { effectiveStatus } from "@/lib/certificate";
 import { formatDate } from "@/lib/format";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
-import { CERTIFICATE_STATUS_LABELS, EMPTY_STATES, VERIFY_PAGE } from "@/lib/text";
+import {
+  CERTIFICATE_STATUS_LABELS,
+  EMPTY_STATES,
+  VERIFY_PAGE,
+  CLAIM_TEXT,
+} from "@/lib/text";
 import type { CertificateRow, GradeDb } from "@/lib/types/db";
 
 export const metadata = { title: "Sertifikat" };
 
 interface CertificateListRow extends CertificateRow {
-  batches: { batch_code: string; factories: { legal_name: string } | null } | null;
+  batches: {
+    batch_code: string;
+    material_categories: { name: string } | null;
+    factories: { legal_name: string } | null;
+  } | null;
   grading_results: { grade: GradeDb; final_score: number } | null;
 }
 
@@ -24,7 +33,9 @@ export default async function AdminCertificatesPage() {
 
   const { data: certificates } = await supabase
     .from("certificates")
-    .select("*, batches(batch_code, factories(legal_name)), grading_results(grade, final_score)")
+    .select(
+      "*, batches(batch_code, material_categories(name), factories(legal_name)), grading_results(grade, final_score)",
+    )
     .order("issued_at", { ascending: false })
     .returns<CertificateListRow[]>();
 
@@ -41,7 +52,10 @@ export default async function AdminCertificatesPage() {
         <EmptyState title={EMPTY_STATES.noCertificates} />
       ) : (
         list.map((certificate) => {
-          const status = effectiveStatus(certificate.status, certificate.valid_until);
+          const status = effectiveStatus(
+            certificate.status,
+            certificate.valid_until,
+          );
           return (
             <Panel key={certificate.id}>
               <PanelHeader
@@ -53,7 +67,13 @@ export default async function AdminCertificatesPage() {
                       <GradeChip grade={certificate.grading_results.grade} />
                     ) : null}
                     <Badge
-                      tone={status === "valid" ? "ok" : status === "expired" ? "warning" : "danger"}
+                      tone={
+                        status === "valid"
+                          ? "ok"
+                          : status === "expired"
+                            ? "warning"
+                            : "danger"
+                      }
                     >
                       {status === "valid"
                         ? CERTIFICATE_STATUS_LABELS.issued
@@ -66,11 +86,30 @@ export default async function AdminCertificatesPage() {
               />
               <PanelBody className="space-y-4">
                 <dl>
-                  <DataRow label="Kode batch" value={certificate.batches?.batch_code ?? "—"} mono />
-                  <DataRow label="Terbit" value={formatDate(certificate.issued_at)} />
-                  <DataRow label="Berlaku sampai" value={formatDate(certificate.valid_until)} />
+                  <DataRow
+                    label="Kode batch"
+                    value={certificate.batches?.batch_code ?? "—"}
+                    mono
+                  />
+                  <DataRow
+                    label={CLAIM_TEXT.category}
+                    value={
+                      certificate.batches?.material_categories?.name ?? "—"
+                    }
+                  />
+                  <DataRow
+                    label="Terbit"
+                    value={formatDate(certificate.issued_at)}
+                  />
+                  <DataRow
+                    label="Berlaku sampai"
+                    value={formatDate(certificate.valid_until)}
+                  />
                   {certificate.revoke_reason ? (
-                    <DataRow label="Alasan pencabutan" value={certificate.revoke_reason} />
+                    <DataRow
+                      label="Alasan pencabutan"
+                      value={certificate.revoke_reason}
+                    />
                   ) : null}
                 </dl>
 

@@ -1,7 +1,8 @@
 import { randomInt } from "node:crypto";
 import { siteUrl } from "./env";
 import type { CertificateStatus, GradeDb } from "./types/db";
-import { GRADE_MEANING } from "./text";
+import { GRADE_MEANING, LISTING_TEXT } from "./text";
+export { claimedSpecSummary } from "./claims";
 
 /**
  * Pembuatan kode sertifikat & teks turunannya.
@@ -56,7 +57,8 @@ export function effectiveStatus(
   now: Date = new Date(),
 ): EffectiveStatus {
   if (status === "revoked" || status === "superseded") return "revoked";
-  const until = typeof validUntil === "string" ? new Date(validUntil) : validUntil;
+  const until =
+    typeof validUntil === "string" ? new Date(validUntil) : validUntil;
   return until.getTime() < now.getTime() ? "expired" : "valid";
 }
 
@@ -77,9 +79,13 @@ export function listingSnippet(params: {
   certificateCode: string;
   categoryName: string;
   validUntil: string | Date;
+  formProfileName?: string;
+  validityNote?: string;
 }): string {
   const until =
-    typeof params.validUntil === "string" ? new Date(params.validUntil) : params.validUntil;
+    typeof params.validUntil === "string"
+      ? new Date(params.validUntil)
+      : params.validUntil;
   const untilText = until.toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
@@ -87,12 +93,17 @@ export function listingSnippet(params: {
   });
 
   return [
-    `[TERVERIFIKASI VMS] Grade ${params.grade} — ${GRADE_MEANING[params.grade]} (skor ${params.finalScore}/100)`,
-    `Kategori material: ${params.categoryName}`,
-    `Nomor sertifikat: ${params.certificateCode}`,
-    `Cek keaslian sertifikat di: ${verificationUrl(params.certificateCode)}`,
-    `Berlaku sampai ${untilText}.`,
+    LISTING_TEXT.header(
+      params.grade,
+      GRADE_MEANING[params.grade],
+      params.finalScore,
+    ),
+    LISTING_TEXT.material(params.categoryName, params.formProfileName),
+    LISTING_TEXT.code(params.certificateCode),
+    LISTING_TEXT.verify(verificationUrl(params.certificateCode)),
+    LISTING_TEXT.validUntil(untilText),
+    ...(params.validityNote ? [params.validityNote] : []),
     "",
-    "VMS (Verified Material Standard) adalah lembaga grading independen. VMS menilai kondisi batch lewat sampling 3 titik, tidak menjual material dan tidak memegang transaksi.",
+    LISTING_TEXT.disclaimer,
   ].join("\n");
 }

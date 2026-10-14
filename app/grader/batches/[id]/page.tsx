@@ -1,26 +1,48 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
-import { ConsistencyNote, FinalScoreBreakdown, SamplePointTable } from "@/components/grading-breakdown";
+import { SamplingGuide } from "@/components/sampling-guide";
+import {
+  ConsistencyNote,
+  FinalScoreBreakdown,
+  SamplePointTable,
+} from "@/components/grading-breakdown";
 import { BatchStatusBadge } from "@/components/status-badges";
 import { GradeStamp } from "@/components/ui/grade";
 import { DataRow, Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { GateForm } from "./gate-form";
 import { GradingWizard } from "./wizard";
 import { attachSamplePhotoAction } from "../../actions";
+import { toCategoryConfig } from "@/lib/category-config";
 import { formatDate, formatWeight } from "@/lib/format";
-import type { CategoryConfig, GradingResult } from "@/lib/scoring";
 import { createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
-import { BATCH_STATUS_HINT } from "@/lib/text";
-import type { BatchRow, CategoryCriterionRow, GateCheckRow, GradingResultRow } from "@/lib/types/db";
+import { BATCH_STATUS_HINT, ERRORS } from "@/lib/text";
+import type {
+  BatchRow,
+  CategoryCriterionRow,
+  GateCheckRow,
+  GradingResultRow,
+  MaterialCategoryRow,
+  MaterialFormProfileRow,
+} from "@/lib/types/db";
 
 export const metadata = { title: "Penilaian batch" };
 
 interface GraderBatch extends BatchRow {
-  material_categories: { code: string; name: string } | null;
-  factories: { legal_name: string; city: string; address: string; contact_person: string } | null;
+  material_categories: MaterialCategoryRow | null;
+  material_form_profiles: MaterialFormProfileRow | null;
+  factories: {
+    legal_name: string;
+    city: string;
+    address: string;
+    contact_person: string;
+  } | null;
 }
 
-export default async function GraderBatchPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GraderBatchPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
   const user = await requireRole("grader");
   const supabase = await createSupabaseServerClient();
@@ -35,40 +57,39 @@ export default async function GraderBatchPage({ params }: { params: Promise<{ id
 
   const { data: batch } = await supabase
     .from("batches")
-    .select("*, material_categories(code, name), factories(legal_name, city, address, contact_person)")
+    .select(
+      "*, material_categories(*), material_form_profiles(*), factories(legal_name, city, address, contact_person)",
+    )
     .eq("id", id)
     .maybeSingle<GraderBatch>();
   if (!batch) notFound();
 
-  const [{ data: criteria }, { data: gate }, { data: grading }] = await Promise.all([
-    supabase
-      .from("category_criteria")
-      .select("*")
-      .eq("category_id", batch.category_id)
-      .order("sort_order", { ascending: true })
-      .returns<CategoryCriterionRow[]>(),
-    supabase.from("gate_checks").select("*").eq("batch_id", id).maybeSingle<GateCheckRow>(),
-    supabase
-      .from("grading_results")
-      .select("*")
-      .eq("batch_id", id)
-      .order("computed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<GradingResultRow>(),
-  ]);
+  const [{ data: criteria }, { data: gate }, { data: grading }] =
+    await Promise.all([
+      supabase
+        .from("category_criteria")
+        .select("*")
+        .eq("category_id", batch.category_id)
+        .order("sort_order", { ascending: true })
+        .returns<CategoryCriterionRow[]>(),
+      supabase
+        .from("gate_checks")
+        .select("*")
+        .eq("batch_id", id)
+        .maybeSingle<GateCheckRow>(),
+      supabase
+        .from("grading_results")
+        .select("*")
+        .eq("batch_id", id)
+        .order("computed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<GradingResultRow>(),
+    ]);
 
-  const category: CategoryConfig = {
-    code: batch.material_categories?.code ?? "unknown",
-    name: batch.material_categories?.name ?? "—",
-    criteria: (criteria ?? []).map((row) => ({
-      criterion: row.criterion,
-      subKey: row.sub_key,
-      label: row.label,
-      weightPct: Number(row.weight_pct),
-      isOdor: row.is_odor,
-      odorOverrideCap: row.odor_override_cap,
-    })),
-  };
+  const category = toCategoryConfig(
+    batch.material_categories ?? { code: "unknown", name: "—" },
+    criteria ?? [],
+  );
 
   const gatePassed =
     gate?.non_b3_pass === true &&
@@ -84,18 +105,43 @@ export default async function GraderBatchPage({ params }: { params: Promise<{ id
       />
 
       <Panel>
-        <PanelHeader title={batch.factories?.legal_name ?? "—"} description={batch.factories?.address} />
+        <PanelHeader
+          title={batch.factories?.legal_name ?? "—"}
+          description={batch.factories?.address}
+        />
         <PanelBody>
           <dl>
             <DataRow label="Kategori material" value={category.name} />
-            <DataRow label="Klaim berat" value={formatWeight(batch.claimed_weight_kg)} mono />
-            <DataRow label="Klaim spesifikasi" value={batch.claimed_spec ?? "—"} />
+            <DataRow
+              label="Klaim berat"
+              value={formatWeight(batch.claimed_weight_kg)}
+              mono
+            />
+            <DataRow
+              label="Klaim spesifikasi"
+              value={batch.claimed_spec ?? "—"}
+            />
             <DataRow label="Nomor lot" value={batch.lot_number ?? "—"} mono />
-            <DataRow label="Tanggal produksi" value={formatDate(batch.production_date)} />
-            <DataRow label="Kontak di lokasi" value={batch.factories?.contact_person ?? "—"} />
+            <DataRow
+              label="Tanggal produksi"
+              value={formatDate(batch.production_date)}
+            />
+            <DataRow
+              label="Kontak di lokasi"
+              value={batch.factories?.contact_person ?? "—"}
+            />
           </dl>
         </PanelBody>
       </Panel>
+
+      <SamplingGuide
+        categoryName={category.name}
+        profile={batch.material_form_profiles}
+        claimedSpec={batch.claimed_spec}
+        thresholdDisclaimer={
+          batch.material_categories?.threshold_disclaimer ?? null
+        }
+      />
 
       {batch.status === "rejected_gate" ? (
         <Panel className="border-danger">
@@ -116,10 +162,22 @@ export default async function GraderBatchPage({ params }: { params: Promise<{ id
             description="Menunggu Admin meninjau dan menerbitkan sertifikat."
           />
           <PanelBody className="space-y-5">
-            <GradeStamp grade={grading.grade} finalScore={grading.final_score} />
-            <FinalScoreBreakdown breakdown={grading.breakdown_json as GradingResult["breakdown"]} />
-            <SamplePointTable breakdown={grading.breakdown_json as GradingResult["breakdown"]} />
-            <ConsistencyNote breakdown={grading.breakdown_json as GradingResult["breakdown"]} />
+            <GradeStamp
+              grade={grading.grade}
+              finalScore={grading.final_score}
+            />
+            <FinalScoreBreakdown
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
+            />
+            <SamplePointTable
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
+            />
+            <ConsistencyNote
+              breakdown={grading.breakdown_json}
+              scoringVersion={grading.scoring_version}
+            />
           </PanelBody>
         </Panel>
       ) : !gatePassed ? (
@@ -129,13 +187,20 @@ export default async function GraderBatchPage({ params }: { params: Promise<{ id
             description="Tiga pemeriksaan pass/fail sebelum skoring dibuka."
           />
           <PanelBody>
-            <GateForm batchId={batch.id} />
+            <GateForm
+              batchId={batch.id}
+              nonB3Extra={batch.material_categories?.non_b3_extra}
+            />
           </PanelBody>
         </Panel>
-      ) : (
+      ) : batch.material_form_profiles && batch.claimed_spec_detail ? (
         <GradingWizard
           batchId={batch.id}
           category={category}
+          profile={batch.material_form_profiles}
+          claimedSpecDetail={batch.claimed_spec_detail}
+          gradeMeanings={batch.material_categories?.grade_meanings ?? null}
+          odorLevel3Hint={batch.material_categories?.odor_level3_hint ?? null}
           claimedWeightKg={Number(batch.claimed_weight_kg)}
           documentationDefaults={{
             hasProductionDate: Boolean(batch.production_date),
@@ -149,6 +214,10 @@ export default async function GraderBatchPage({ params }: { params: Promise<{ id
             bottom: attachSamplePhotoAction.bind(null, batch.id, "bottom"),
           }}
         />
+      ) : (
+        <p role="alert" className="text-danger">
+          {ERRORS.profileRequired}
+        </p>
       )}
     </div>
   );
