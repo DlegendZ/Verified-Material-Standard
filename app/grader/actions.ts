@@ -1,18 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { toCategoryConfig } from "@/lib/category-config";
 import { writeAudit } from "@/lib/audit";
 import {
   ScoringError,
   computeGrading,
-  type CategoryConfig,
   type GradingInput,
   type SamplePointInput,
 } from "@/lib/scoring";
-import { AuthorizationError, createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
+import {
+  AuthorizationError,
+  createSupabaseServerClient,
+  requireRole,
+} from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
 import type { CategoryCriterionRow, SamplePointDb } from "@/lib/types/db";
-import { gateCheckSchema, gradingSubmitSchema } from "@/lib/validation/schemas";
+import {
+  gateCheckSchema,
+  legacyGradingSubmitSchema as gradingSubmitSchema,
+} from "@/lib/validation/schemas";
 
 export interface ActionState {
   error?: string;
@@ -32,7 +39,8 @@ async function requireAssignment(batchId: string) {
     .eq("grader_id", user.id)
     .maybeSingle<{ id: string }>();
 
-  if (!assignment) throw new AuthorizationError("Batch ini tidak ditugaskan kepadamu.");
+  if (!assignment)
+    throw new AuthorizationError("Batch ini tidak ditugaskan kepadamu.");
   return { user, supabase, assignmentId: assignment.id };
 }
 
@@ -66,7 +74,9 @@ export async function saveGateCheckAction(
     }
 
     const allPassed =
-      parsed.data.nonB3Pass && parsed.data.originExistsPass && parsed.data.originAuthenticPass;
+      parsed.data.nonB3Pass &&
+      parsed.data.originExistsPass &&
+      parsed.data.originAuthenticPass;
 
     const { error } = await supabase.from("gate_checks").upsert(
       {
@@ -109,25 +119,6 @@ export async function saveGateCheckAction(
   }
 }
 
-function toCategoryConfig(
-  code: string,
-  name: string,
-  rows: CategoryCriterionRow[],
-): CategoryConfig {
-  return {
-    code,
-    name,
-    criteria: rows.map((row) => ({
-      criterion: row.criterion,
-      subKey: row.sub_key,
-      label: row.label,
-      weightPct: Number(row.weight_pct),
-      isOdor: row.is_odor,
-      odorOverrideCap: row.odor_override_cap,
-    })),
-  };
-}
-
 /**
  * Menghitung dan menyimpan hasil grading.
  *
@@ -136,7 +127,9 @@ function toCategoryConfig(
  * supaya sertifikat lama tidak berubah bila rumus diubah kemudian
  * (SRD Bab 4.3).
  */
-export async function submitGradingAction(input: unknown): Promise<ActionState> {
+export async function submitGradingAction(
+  input: unknown,
+): Promise<ActionState> {
   try {
     const parsed = gradingSubmitSchema.safeParse(input);
     if (!parsed.success) {
@@ -148,7 +141,9 @@ export async function submitGradingAction(input: unknown): Promise<ActionState> 
 
     const { data: batch } = await supabase
       .from("batches")
-      .select("id, claimed_weight_kg, category_id, status, material_categories(code, name)")
+      .select(
+        "id, claimed_weight_kg, category_id, status, material_categories(code, name)",
+      )
       .eq("id", batchId)
       .maybeSingle<{
         id: string;
@@ -159,7 +154,10 @@ export async function submitGradingAction(input: unknown): Promise<ActionState> 
       }>();
     if (!batch) return { error: "Batch tidak ditemukan." };
     if (batch.status === "rejected_gate") {
-      return { error: "Batch ini gagal di gerbang wajib, penilaian tidak bisa dilanjutkan." };
+      return {
+        error:
+          "Batch ini gagal di gerbang wajib, penilaian tidak bisa dilanjutkan.",
+      };
     }
 
     const { data: criteriaRows } = await supabase
@@ -170,8 +168,7 @@ export async function submitGradingAction(input: unknown): Promise<ActionState> 
       .returns<CategoryCriterionRow[]>();
 
     const category = toCategoryConfig(
-      batch.material_categories?.code ?? "unknown",
-      batch.material_categories?.name ?? "—",
+      batch.material_categories ?? { code: "unknown", name: "—" },
       criteriaRows ?? [],
     );
 
@@ -212,7 +209,8 @@ export async function submitGradingAction(input: unknown): Promise<ActionState> 
         })
         .select("id")
         .single<{ id: string }>();
-      if (pointError || !inserted) return { error: pointError?.message ?? ERRORS.generic };
+      if (pointError || !inserted)
+        return { error: pointError?.message ?? ERRORS.generic };
 
       const scoreRows = (criteriaRows ?? [])
         .filter((row) => row.criterion !== "quantity_accuracy")
@@ -223,51 +221,65 @@ export async function submitGradingAction(input: unknown): Promise<ActionState> 
           raw_score: point.scores[row.sub_key] ?? 0,
         }));
 
-      const { error: scoreError } = await supabase.from("sample_scores").insert(scoreRows);
+      const { error: scoreError } = await supabase
+        .from("sample_scores")
+        .insert(scoreRows);
       if (scoreError) return { error: scoreError.message };
     }
 
-    const { error: quantityError } = await supabase.from("quantity_checks").upsert(
-      {
-        batch_id: batchId,
-        actual_weight_kg: quantity.actualWeightKg,
-        spec_match_pct: quantity.specMatchPct,
-        notes: quantity.notes || null,
-      },
-      { onConflict: "batch_id" },
-    );
+    const { error: quantityError } = await supabase
+      .from("quantity_checks")
+      .upsert(
+        {
+          batch_id: batchId,
+          actual_weight_kg: quantity.actualWeightKg,
+          spec_match_pct: quantity.specMatchPct,
+          notes: quantity.notes || null,
+        },
+        { onConflict: "batch_id" },
+      );
     if (quantityError) return { error: quantityError.message };
 
-    const { error: docError } = await supabase.from("documentation_checks").upsert(
-      {
-        batch_id: batchId,
-        has_production_date: documentation.hasProductionDate,
-        has_multi_angle_photos: documentation.hasMultiAnglePhotos,
-        has_lot_number: documentation.hasLotNumber,
-        has_lab_test: documentation.hasLabTest,
-      },
-      { onConflict: "batch_id" },
-    );
+    const { error: docError } = await supabase
+      .from("documentation_checks")
+      .upsert(
+        {
+          batch_id: batchId,
+          has_production_date: documentation.hasProductionDate,
+          has_multi_angle_photos: documentation.hasMultiAnglePhotos,
+          has_lot_number: documentation.hasLotNumber,
+          has_lab_test: documentation.hasLabTest,
+        },
+        { onConflict: "batch_id" },
+      );
     if (docError) return { error: docError.message };
 
     // grading_results append-only: regrading membuat baris baru, tidak menimpa.
-    const { error: resultError } = await supabase.from("grading_results").insert({
-      batch_id: batchId,
-      purity_score: result.purityScore,
-      cleanliness_score: result.cleanlinessScore,
-      consistency_score: result.consistencyScore,
-      quantity_score: result.quantityScore,
-      documentation_score: result.documentationScore,
-      final_score: result.finalScore,
-      grade: result.grade,
-      breakdown_json: result.breakdown,
-      scoring_version: result.scoringVersion,
-      submitted_by: user.id,
-    });
+    const { error: resultError } = await supabase
+      .from("grading_results")
+      .insert({
+        batch_id: batchId,
+        purity_score: result.purityScore,
+        cleanliness_score: result.cleanlinessScore,
+        consistency_score: result.consistencyScore,
+        quantity_score: result.quantityScore,
+        documentation_score: result.documentationScore,
+        final_score: result.finalScore,
+        grade: result.grade,
+        breakdown_json: result.breakdown,
+        scoring_version: result.scoringVersion,
+        submitted_by: user.id,
+      });
     if (resultError) return { error: resultError.message };
 
-    await supabase.from("batches").update({ status: "computed" }).eq("id", batchId);
-    await supabase.from("assignments").update({ status: "submitted" }).eq("id", assignmentId);
+    await supabase
+      .from("batches")
+      .update({ status: "computed" })
+      .eq("id", batchId);
+    await supabase
+      .from("assignments")
+      .update({ status: "submitted" })
+      .eq("id", assignmentId);
 
     await writeAudit(supabase, {
       actorId: user.id,

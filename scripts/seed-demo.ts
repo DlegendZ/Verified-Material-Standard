@@ -9,6 +9,7 @@
  * Jalankan: npm run seed:demo
  * Aman diulang: seluruh batch demo dihapus lebih dulu lalu dibuat ulang.
  */
+import { toCategoryConfig } from "../lib/category-config";
 import QRCode from "qrcode";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -18,12 +19,15 @@ import {
   type GradingResult,
   type SamplePointInput,
 } from "../lib/scoring";
-import { generateCertificateCode, validUntilFrom, verificationUrl } from "../lib/certificate";
+import {
+  generateCertificateCode,
+  validUntilFrom,
+  verificationUrl,
+} from "../lib/certificate";
 import { normalizeSupabaseUrl } from "../lib/env";
 import type { CategoryCriterionRow } from "../lib/types/db";
 
 const BATCH_PREFIX = "DEMO";
-const VALIDITY_DAYS = Number(process.env.CERTIFICATE_VALIDITY_DAYS ?? 90);
 
 function env(name: string): string {
   const value = process.env[name];
@@ -58,10 +62,16 @@ function placeholderSvg(label: string, sublabel: string, hex: string): Blob {
   return new Blob([svg], { type: "image/svg+xml" });
 }
 
-async function loadCategory(code: string): Promise<{ id: string; config: CategoryConfig }> {
+async function loadCategory(
+  code: string,
+): Promise<{
+  id: string;
+  config: CategoryConfig;
+  validityDays: number | null;
+}> {
   const { data: category, error } = await supabase
     .from("material_categories")
-    .select("id, code, name")
+    .select("id, code, name, certificate_validity_days")
     .eq("code", code)
     .single();
   if (error || !category) {
@@ -86,18 +96,8 @@ async function loadCategory(code: string): Promise<{ id: string; config: Categor
 
   return {
     id: category.id,
-    config: {
-      code: category.code,
-      name: category.name,
-      criteria: (rows ?? []).map((row) => ({
-        criterion: row.criterion,
-        subKey: row.sub_key,
-        label: row.label,
-        weightPct: Number(row.weight_pct),
-        isOdor: row.is_odor,
-        odorOverrideCap: row.odor_override_cap,
-      })),
-    },
+    config: toCategoryConfig(category, rows ?? []),
+    validityDays: category.certificate_validity_days,
   };
 }
 
@@ -107,12 +107,18 @@ async function idOfFactory(legalName: string): Promise<string> {
     .select("id")
     .eq("legal_name", legalName)
     .maybeSingle();
-  if (!data) throw new Error(`Pabrik "${legalName}" belum ada. Jalankan seed.sql dulu.`);
+  if (!data)
+    throw new Error(`Pabrik "${legalName}" belum ada. Jalankan seed.sql dulu.`);
   return data.id as string;
 }
 
 async function idOfProfile(role: "admin" | "grader"): Promise<string> {
-  const { data } = await supabase.from("profiles").select("id").eq("role", role).limit(1).maybeSingle();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("role", role)
+    .limit(1)
+    .maybeSingle();
   if (!data) throw new Error(`Akun ${role} belum ada. Jalankan seed.sql dulu.`);
   return data.id as string;
 }
@@ -126,7 +132,12 @@ interface DemoBatchSpec {
   lotNumber: string | null;
   productionDate: string | null;
   description: string;
-  gate: { nonB3: boolean; originExists: boolean; originAuthentic: boolean; notes?: string };
+  gate: {
+    nonB3: boolean;
+    originExists: boolean;
+    originAuthentic: boolean;
+    notes?: string;
+  };
   sampling?: {
     points: SamplePointInput[];
     actualWeightKg: number;
@@ -139,7 +150,13 @@ interface DemoBatchSpec {
   photoColor: string;
 }
 
-const TEXTILE_FLAT = (fiber: number, uniform: number, dirt: number, fray: number, odor: number) => ({
+const TEXTILE_FLAT = (
+  fiber: number,
+  uniform: number,
+  dirt: number,
+  fray: number,
+  odor: number,
+) => ({
   fiber_type_match: fiber,
   uniformity: uniform,
   dirt_level: dirt,
@@ -160,9 +177,21 @@ const SPECS: DemoBatchSpec[] = [
     gate: { nonB3: true, originExists: true, originAuthentic: true },
     sampling: {
       points: [
-        { point: "top", odorLevel: 1, scores: TEXTILE_FLAT(96, 92, 95, 93, 98) },
-        { point: "middle", odorLevel: 1, scores: TEXTILE_FLAT(94, 90, 93, 91, 96) },
-        { point: "bottom", odorLevel: 1, scores: TEXTILE_FLAT(95, 89, 92, 90, 95) },
+        {
+          point: "top",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(96, 92, 95, 93, 98),
+        },
+        {
+          point: "middle",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(94, 90, 93, 91, 96),
+        },
+        {
+          point: "bottom",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(95, 89, 92, 90, 95),
+        },
       ],
       actualWeightKg: 318,
       specMatchPct: 94,
@@ -189,9 +218,21 @@ const SPECS: DemoBatchSpec[] = [
     gate: { nonB3: true, originExists: true, originAuthentic: true },
     sampling: {
       points: [
-        { point: "top", odorLevel: 1, scores: TEXTILE_FLAT(90, 80, 90, 85, 95) },
-        { point: "middle", odorLevel: 1, scores: TEXTILE_FLAT(88, 85, 85, 80, 90) },
-        { point: "bottom", odorLevel: 3, scores: TEXTILE_FLAT(70, 60, 80, 75, 10) },
+        {
+          point: "top",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(90, 80, 90, 85, 95),
+        },
+        {
+          point: "middle",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(88, 85, 85, 80, 90),
+        },
+        {
+          point: "bottom",
+          odorLevel: 3,
+          scores: TEXTILE_FLAT(70, 60, 80, 75, 10),
+        },
       ],
       actualWeightKg: 47,
       specMatchPct: 75,
@@ -217,9 +258,21 @@ const SPECS: DemoBatchSpec[] = [
     gate: { nonB3: true, originExists: true, originAuthentic: true },
     sampling: {
       points: [
-        { point: "top", odorLevel: 1, scores: TEXTILE_FLAT(85, 78, 84, 80, 90) },
-        { point: "middle", odorLevel: 2, scores: TEXTILE_FLAT(82, 76, 80, 78, 72) },
-        { point: "bottom", odorLevel: 1, scores: TEXTILE_FLAT(80, 75, 82, 79, 88) },
+        {
+          point: "top",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(85, 78, 84, 80, 90),
+        },
+        {
+          point: "middle",
+          odorLevel: 2,
+          scores: TEXTILE_FLAT(82, 76, 80, 78, 72),
+        },
+        {
+          point: "bottom",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(80, 75, 82, 79, 88),
+        },
       ],
       actualWeightKg: 176,
       specMatchPct: 82,
@@ -247,9 +300,21 @@ const SPECS: DemoBatchSpec[] = [
     gate: { nonB3: true, originExists: true, originAuthentic: true },
     sampling: {
       points: [
-        { point: "top", odorLevel: 3, scores: TEXTILE_FLAT(55, 40, 45, 40, 15) },
-        { point: "middle", odorLevel: 1, scores: TEXTILE_FLAT(62, 45, 55, 50, 70) },
-        { point: "bottom", odorLevel: 3, scores: TEXTILE_FLAT(38, 30, 35, 30, 10) },
+        {
+          point: "top",
+          odorLevel: 3,
+          scores: TEXTILE_FLAT(55, 40, 45, 40, 15),
+        },
+        {
+          point: "middle",
+          odorLevel: 1,
+          scores: TEXTILE_FLAT(62, 45, 55, 50, 70),
+        },
+        {
+          point: "bottom",
+          odorLevel: 3,
+          scores: TEXTILE_FLAT(38, 30, 35, 30, 10),
+        },
       ],
       actualWeightKg: 178,
       specMatchPct: 42,
@@ -332,7 +397,9 @@ async function uploadCertificateAssets(
     if (error) throw new Error(error.message);
     qrPath = path;
   } catch (error) {
-    console.warn(`  ! QR ${certificateCode} gagal dibuat: ${(error as Error).message}`);
+    console.warn(
+      `  ! QR ${certificateCode} gagal dibuat: ${(error as Error).message}`,
+    );
   }
 
   try {
@@ -376,7 +443,10 @@ async function uploadCertificateAssets(
 }
 
 async function removeExistingDemoBatches() {
-  const { data } = await supabase.from("batches").select("id").like("batch_code", `${BATCH_PREFIX}-%`);
+  const { data } = await supabase
+    .from("batches")
+    .select("id")
+    .like("batch_code", `${BATCH_PREFIX}-%`);
   const ids = (data ?? []).map((row) => row.id as string);
   if (ids.length === 0) return;
 
@@ -404,7 +474,8 @@ async function main() {
 
   for (const spec of SPECS) {
     const factoryId = await idOfFactory(spec.factoryName);
-    const gatePassed = spec.gate.nonB3 && spec.gate.originExists && spec.gate.originAuthentic;
+    const gatePassed =
+      spec.gate.nonB3 && spec.gate.originExists && spec.gate.originAuthentic;
 
     const { data: batch, error: batchError } = await supabase
       .from("batches")
@@ -421,7 +492,8 @@ async function main() {
       })
       .select("id")
       .single();
-    if (batchError || !batch) throw new Error(`Gagal membuat ${spec.code}: ${batchError?.message}`);
+    if (batchError || !batch)
+      throw new Error(`Gagal membuat ${spec.code}: ${batchError?.message}`);
 
     const batchId = batch.id as string;
 
@@ -449,11 +521,19 @@ async function main() {
     if (generalPhoto) {
       await supabase
         .from("batch_photos")
-        .insert({ batch_id: batchId, file_path: generalPhoto, sample_point: null, angle_label: "Tumpukan" });
+        .insert({
+          batch_id: batchId,
+          file_path: generalPhoto,
+          sample_point: null,
+          angle_label: "Tumpukan",
+        });
     }
 
     if (!gatePassed || !spec.sampling) {
-      await supabase.from("batches").update({ status: "rejected_gate" }).eq("id", batchId);
+      await supabase
+        .from("batches")
+        .update({ status: "rejected_gate" })
+        .eq("id", batchId);
       console.log(`  ${spec.code}: ditolak di gerbang wajib.`);
       continue;
     }
@@ -461,7 +541,11 @@ async function main() {
     for (const point of spec.sampling.points) {
       const { data: inserted } = await supabase
         .from("sample_points")
-        .insert({ batch_id: batchId, point: point.point, odor_level: point.odorLevel })
+        .insert({
+          batch_id: batchId,
+          point: point.point,
+          odor_level: point.odorLevel,
+        })
         .select("id")
         .single();
       if (!inserted) continue;
@@ -538,15 +622,22 @@ async function main() {
       .select("id, computed_at")
       .single();
 
-    console.log(`  ${spec.code}: skor ${result.finalScore} → grade ${result.grade}`);
+    console.log(
+      `  ${spec.code}: skor ${result.finalScore} → grade ${result.grade}`,
+    );
 
     if (spec.outcome === "not_certified" || !grading) {
-      await supabase.from("batches").update({ status: "not_certified" }).eq("id", batchId);
+      await supabase
+        .from("batches")
+        .update({ status: "not_certified" })
+        .eq("id", batchId);
       continue;
     }
 
     const issuedAt = new Date();
-    const validUntil = validUntilFrom(issuedAt, VALIDITY_DAYS);
+    if (!textile.validityDays)
+      throw new Error("Masa berlaku kategori belum ditetapkan.");
+    const validUntil = validUntilFrom(issuedAt, textile.validityDays);
     const certificateCode = generateCertificateCode(issuedAt);
     const assets = await uploadCertificateAssets(
       certificateCode,
@@ -570,13 +661,18 @@ async function main() {
       pdf_path: assets.pdfPath,
     });
 
-    await supabase.from("batches").update({ status: "certified" }).eq("id", batchId);
+    await supabase
+      .from("batches")
+      .update({ status: "certified" })
+      .eq("id", batchId);
     console.log(
       `    sertifikat ${certificateCode}${spec.outcome === "revoked" ? " (dicabut)" : ""}`,
     );
   }
 
-  console.log("Selesai. Buka /admin untuk melihat antrian, atau /verify/<kode> untuk halaman publik.");
+  console.log(
+    "Selesai. Buka /admin untuk melihat antrian, atau /verify/<kode> untuk halaman publik.",
+  );
 }
 
 main().catch((error) => {

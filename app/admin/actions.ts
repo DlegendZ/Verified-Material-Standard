@@ -2,16 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { writeAudit } from "@/lib/audit";
-import {
-  generateCertificateCode,
-  validUntilFrom,
-} from "@/lib/certificate";
+import { generateCertificateCode, validUntilFrom } from "@/lib/certificate";
 import { renderCertificatePdf, renderQrPng } from "@/lib/certificate-assets";
-import { certificateValidityDays } from "@/lib/env";
 import { CERTIFIABLE_GRADES, FINAL_WEIGHTS } from "@/lib/scoring";
 import { BUCKETS } from "@/lib/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { AuthorizationError, createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
+import {
+  AuthorizationError,
+  createSupabaseServerClient,
+  requireRole,
+} from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
 import type { GradingResultRow } from "@/lib/types/db";
 import {
@@ -73,7 +73,8 @@ export async function assignGraderAction(
       batchId: String(formData.get("batchId") ?? ""),
       graderId: String(formData.get("graderId") ?? ""),
     });
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
+    if (!parsed.success)
+      return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
 
     const supabase = await createSupabaseServerClient();
 
@@ -113,7 +114,10 @@ interface IssueContext {
   claimed_weight_kg: number;
   lot_number: string | null;
   production_date: string | null;
-  material_categories: { name: string } | null;
+  material_categories: {
+    name: string;
+    certificate_validity_days: number | null;
+  } | null;
   factories: { legal_name: string; city: string } | null;
 }
 
@@ -123,7 +127,9 @@ interface IssueContext {
  * Render QR & PDF memakai service role karena aset sertifikat ditulis atas nama
  * sistem, bukan atas nama pengguna — perannya sudah divalidasi di baris pertama.
  */
-export async function issueCertificateAction(batchId: string): Promise<ActionState> {
+export async function issueCertificateAction(
+  batchId: string,
+): Promise<ActionState> {
   try {
     const admin = await requireRole("admin");
     const supabase = await createSupabaseServerClient();
@@ -152,14 +158,16 @@ export async function issueCertificateAction(batchId: string): Promise<ActionSta
     const { data: batch } = await supabase
       .from("batches")
       .select(
-        "batch_code, claimed_weight_kg, lot_number, production_date, material_categories(name), factories(legal_name, city)",
+        "batch_code, claimed_weight_kg, lot_number, production_date, material_categories(name, certificate_validity_days), factories(legal_name, city)",
       )
       .eq("id", batchId)
       .maybeSingle<IssueContext>();
     if (!batch) return { error: "Batch tidak ditemukan." };
 
     const issuedAt = new Date();
-    const validUntil = validUntilFrom(issuedAt, certificateValidityDays());
+    const validityDays = batch.material_categories?.certificate_validity_days;
+    if (!validityDays) return { error: ERRORS.validityNotSet };
+    const validUntil = validUntilFrom(issuedAt, validityDays);
     const certificateCode = generateCertificateCode(issuedAt);
 
     const pdf = await renderCertificatePdf({
@@ -177,25 +185,52 @@ export async function issueCertificateAction(batchId: string): Promise<ActionSta
       issuedAt: issuedAt.toISOString(),
       validUntil: validUntil.toISOString(),
       criteria: [
-        { label: "Kemurnian/Komposisi", score: Number(grading.purity_score), weightPct: FINAL_WEIGHTS.purity },
-        { label: "Kebersihan & Kontaminasi", score: Number(grading.cleanliness_score), weightPct: FINAL_WEIGHTS.cleanliness },
-        { label: "Konsistensi Batch", score: Number(grading.consistency_score), weightPct: FINAL_WEIGHTS.consistency },
-        { label: "Akurasi Kuantitas & Spesifikasi", score: Number(grading.quantity_score), weightPct: FINAL_WEIGHTS.quantity },
-        { label: "Kelengkapan Dokumentasi", score: Number(grading.documentation_score), weightPct: FINAL_WEIGHTS.documentation },
+        {
+          label: "Kemurnian/Komposisi",
+          score: Number(grading.purity_score),
+          weightPct: FINAL_WEIGHTS.purity,
+        },
+        {
+          label: "Kebersihan & Kontaminasi",
+          score: Number(grading.cleanliness_score),
+          weightPct: FINAL_WEIGHTS.cleanliness,
+        },
+        {
+          label: "Konsistensi Batch",
+          score: Number(grading.consistency_score),
+          weightPct: FINAL_WEIGHTS.consistency,
+        },
+        {
+          label: "Akurasi Kuantitas & Spesifikasi",
+          score: Number(grading.quantity_score),
+          weightPct: FINAL_WEIGHTS.quantity,
+        },
+        {
+          label: "Kelengkapan Dokumentasi",
+          score: Number(grading.documentation_score),
+          weightPct: FINAL_WEIGHTS.documentation,
+        },
       ],
     });
     const qr = await renderQrPng(certificateCode);
 
-    const storage = createSupabaseAdminClient().storage.from(BUCKETS.certificates);
+    const storage = createSupabaseAdminClient().storage.from(
+      BUCKETS.certificates,
+    );
     const pdfPath = `${certificateCode}/sertifikat.pdf`;
     const qrPath = `${certificateCode}/qr.png`;
 
     const [pdfUpload, qrUpload] = await Promise.all([
-      storage.upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true }),
+      storage.upload(pdfPath, pdf, {
+        contentType: "application/pdf",
+        upsert: true,
+      }),
       storage.upload(qrPath, qr, { contentType: "image/png", upsert: true }),
     ]);
     if (pdfUpload.error || qrUpload.error) {
-      return { error: `Gagal menyimpan aset sertifikat: ${(pdfUpload.error ?? qrUpload.error)?.message}` };
+      return {
+        error: `Gagal menyimpan aset sertifikat: ${(pdfUpload.error ?? qrUpload.error)?.message}`,
+      };
     }
 
     const { error: insertError } = await supabase.from("certificates").insert({
@@ -211,14 +246,21 @@ export async function issueCertificateAction(batchId: string): Promise<ActionSta
     });
     if (insertError) return { error: insertError.message };
 
-    await supabase.from("batches").update({ status: "certified" }).eq("id", batchId);
+    await supabase
+      .from("batches")
+      .update({ status: "certified" })
+      .eq("id", batchId);
 
     await writeAudit(supabase, {
       actorId: admin.id,
       action: "certificate.issued",
       entityType: "certificate",
       entityId: null,
-      payload: { batch_id: batchId, certificate_code: certificateCode, grade: grading.grade },
+      payload: {
+        batch_id: batchId,
+        certificate_code: certificateCode,
+        grade: grading.grade,
+      },
     });
 
     revalidatePath("/admin");
@@ -232,7 +274,9 @@ export async function issueCertificateAction(batchId: string): Promise<ActionSta
 }
 
 /** Menandai batch grade D sebagai tidak lolos sertifikasi. */
-export async function markNotCertifiedAction(batchId: string): Promise<ActionState> {
+export async function markNotCertifiedAction(
+  batchId: string,
+): Promise<ActionState> {
   try {
     const admin = await requireRole("admin");
     const supabase = await createSupabaseServerClient();
@@ -273,7 +317,8 @@ export async function revokeCertificateAction(
       certificateId: String(formData.get("certificateId") ?? ""),
       reason: String(formData.get("reason") ?? ""),
     });
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
+    if (!parsed.success)
+      return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
 
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase
@@ -311,7 +356,9 @@ export async function updateCategoryWeightsAction(
 
     const rows: { id: string; criterion: string; weightPct: number }[] = [];
     for (const [key, value] of formData.entries()) {
-      const match = /^weight:(.+):(purity|cleanliness|quantity_accuracy)$/.exec(key);
+      const match = /^weight:(.+):(purity|cleanliness|quantity_accuracy)$/.exec(
+        key,
+      );
       if (!match) continue;
       rows.push({
         id: match[1],
@@ -324,7 +371,8 @@ export async function updateCategoryWeightsAction(
       categoryId: String(formData.get("categoryId") ?? ""),
       weights: rows,
     });
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
+    if (!parsed.success)
+      return { error: parsed.error.issues[0]?.message ?? ERRORS.generic };
 
     const supabase = await createSupabaseServerClient();
     for (const row of parsed.data.weights) {

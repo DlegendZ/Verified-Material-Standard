@@ -30,14 +30,18 @@ export function formatScore(value: number | string | null | undefined): string {
   return numberFormatter.format(num);
 }
 
-export function formatWeight(value: number | string | null | undefined): string {
+export function formatWeight(
+  value: number | string | null | undefined,
+): string {
   if (value === null || value === undefined) return "—";
   const num = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(num)) return "—";
   return `${numberFormatter.format(num)} kg`;
 }
 
-export function formatPercent(value: number | string | null | undefined): string {
+export function formatPercent(
+  value: number | string | null | undefined,
+): string {
   if (value === null || value === undefined) return "—";
   const num = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(num)) return "—";
@@ -51,7 +55,9 @@ export function formatDate(value: string | Date | null | undefined): string {
   return dateFormatter.format(date);
 }
 
-export function formatDateTime(value: string | Date | null | undefined): string {
+export function formatDateTime(
+  value: string | Date | null | undefined,
+): string {
   if (!value) return "—";
   const date = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return "—";
@@ -59,7 +65,14 @@ export function formatDateTime(value: string | Date | null | undefined): string 
 }
 
 /** Sisa hari menuju `validUntil`; negatif berarti sudah lewat. */
-export function daysUntil(value: string | Date, now: Date = new Date()): number {
+export function daysUntil(
+  value: string | Date,
+  now: Date = new Date(),
+): number {
   const date = typeof value === "string" ? new Date(value) : value;
   return Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
+}
+
+export function formatValidity(days: number): string {
+  return days % 7 === 0 ? `${days / 7} minggu` : `${days} hari`;
 }

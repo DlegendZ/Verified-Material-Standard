@@ -145,3 +145,20 @@ semuanya dengan `''` dan menormalkan baris lama.
 ## Blocker yang butuh DevOps (tidak dikerjakan agent, sesuai SRD Bab 12)
 
 Belum ada. Bila muncul, ditulis di sini — bukan diselesaikan sendiri.
+
+## A36 — Ringkasan klaim menerima berat total sebagai parameter keempat
+
+`claimedSpecSummary(detail, profile, declaredMaterialType, claimedWeightKg)` menerima berat
+total dari kolom batch secara eksplisit. Bentuk JSON klaim di Bab 7.4.2 tidak memuat berat,
+sementara keluaran Bab 7.4.3 wajib menampilkan total kg. Berat tidak diduplikasi ke JSON klaim.
+
+Alasan: satu sumber berat dan format ringkasan persis contoh dokumen.
+
+## A37 — Helper ringkasan klaim dipisahkan ke modul yang aman di browser
+
+Implementasi `claimedSpecSummary` ada di `lib/claims.ts` dan diekspor ulang dari
+`lib/certificate.ts`. Form pabrik mengimpor modul browser tersebut. Modul certificate
+mengimpor `node:crypto` untuk kode sertifikat, sehingga tidak boleh diimpor form client.
+
+Alasan: pratinjau browser dan ringkasan server memakai fungsi yang sama tanpa membawa crypto
+ke bundel browser.

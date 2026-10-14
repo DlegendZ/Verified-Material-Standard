@@ -4,10 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { writeAudit } from "@/lib/audit";
 import { generateBatchCode } from "@/lib/certificate";
-import { AuthorizationError, createSupabaseServerClient, requireRole } from "@/lib/supabase/server";
+import {
+  AuthorizationError,
+  createSupabaseServerClient,
+  requireRole,
+} from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
 import type { FactoryRow } from "@/lib/types/db";
-import { batchDraftSchema, factoryProfileSchema } from "@/lib/validation/schemas";
+import {
+  legacyBatchDraftSchema as batchDraftSchema,
+  factoryProfileSchema,
+} from "@/lib/validation/schemas";
 
 export interface ActionState {
   error?: string;
@@ -43,7 +50,8 @@ export async function saveFactoryProfileAction(
       contactPerson: String(formData.get("contactPerson") ?? ""),
       contactPhone: String(formData.get("contactPhone") ?? ""),
     });
-    if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error.issues) };
+    if (!parsed.success)
+      return { fieldErrors: fieldErrorsOf(parsed.error.issues) };
 
     const supabase = await createSupabaseServerClient();
     const { data: existing } = await supabase
@@ -102,7 +110,8 @@ export async function createBatchAction(
       lotNumber: String(formData.get("lotNumber") ?? ""),
       description: String(formData.get("description") ?? ""),
     });
-    if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error.issues) };
+    if (!parsed.success)
+      return { fieldErrors: fieldErrorsOf(parsed.error.issues) };
 
     const supabase = await createSupabaseServerClient();
     const { data: factory } = await supabase
@@ -110,7 +119,8 @@ export async function createBatchAction(
       .select("id")
       .eq("owner_id", user.id)
       .maybeSingle<Pick<FactoryRow, "id">>();
-    if (!factory) return { error: "Lengkapi profil pabrik dulu sebelum mengajukan batch." };
+    if (!factory)
+      return { error: "Lengkapi profil pabrik dulu sebelum mengajukan batch." };
 
     // Kategori "Segera Hadir" tidak boleh dipilih (keputusan D5).
     const { data: category } = await supabase
@@ -119,7 +129,9 @@ export async function createBatchAction(
       .eq("id", parsed.data.categoryId)
       .maybeSingle<{ status: string; is_active: boolean }>();
     if (!category || !category.is_active || category.status !== "live") {
-      return { error: "Kategori itu belum bisa diajukan. Pilih kategori lain." };
+      return {
+        error: "Kategori itu belum bisa diajukan. Pilih kategori lain.",
+      };
     }
 
     const { data: inserted, error } = await supabase
@@ -180,7 +192,8 @@ export async function submitBatchAction(batchId: string): Promise<ActionState> {
       .eq("id", batchId)
       .maybeSingle<{ id: string; status: string; factory_id: string }>();
 
-    if (!batch || batch.factory_id !== factory.id) return { error: ERRORS.unauthorized };
+    if (!batch || batch.factory_id !== factory.id)
+      return { error: ERRORS.unauthorized };
     if (batch.status !== "draft") return { error: "Batch ini sudah diajukan." };
 
     const { error } = await supabase
@@ -224,11 +237,19 @@ export async function attachBatchFileAction(
       .from("batches")
       .select("id, status, factories!inner(owner_id)")
       .eq("id", batchId)
-      .maybeSingle<{ id: string; status: string; factories: { owner_id: string } }>();
+      .maybeSingle<{
+        id: string;
+        status: string;
+        factories: { owner_id: string };
+      }>();
 
-    if (!batch || batch.factories.owner_id !== user.id) return { error: ERRORS.unauthorized };
+    if (!batch || batch.factories.owner_id !== user.id)
+      return { error: ERRORS.unauthorized };
     if (batch.status !== "draft" && batch.status !== "submitted") {
-      return { error: "Batch ini sudah masuk proses penilaian, berkas tidak bisa diubah lagi." };
+      return {
+        error:
+          "Batch ini sudah masuk proses penilaian, berkas tidak bisa diubah lagi.",
+      };
     }
 
     const { error } =

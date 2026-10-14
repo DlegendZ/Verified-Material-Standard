@@ -82,6 +82,7 @@ describe("sinkronisasi kategori, metadata dan profil ↔ SQL (A3)", () => {
           sub.scoringMethod,
           String(sub.requiresMeasurementMethod),
         ]);
+      expect(r[10]).toBe(sub.helpText ?? "null");
       }
       for (const p of c.profiles) {
         const r = profileRows.find((r) => r[1] === code && r[2] === p.code)!;
