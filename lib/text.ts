@@ -127,12 +127,12 @@ export const CRITERIA_EXPLAINER = [
   {
     label: "Kemurnian/Komposisi",
     weight: 30,
-    hint: "Kesesuaian jenis material dengan deklarasi pabrik.",
+    hint: "Jenis kayu sesuai deklarasi pabrik dan seragam di setiap titik sampel.",
   },
   {
     label: "Kebersihan & Kontaminasi",
     weight: 25,
-    hint: "Kotoran fisik, kerusakan struktural, dan indikasi bau.",
+    hint: "Lapuk, jamur, rayap, paku tertanam, kelembapan, retak, dan bau — sebagian dihitung per batang. Kayu bercat, berlem, atau diawetkan kimia tidak diterima.",
   },
   {
     label: "Konsistensi Batch",
@@ -142,7 +142,7 @@ export const CRITERIA_EXPLAINER = [
   {
     label: "Akurasi Kuantitas & Spesifikasi",
     weight: 15,
-    hint: "Klaim pabrik dibanding kenyataan saat ditimbang ulang.",
+    hint: "Berat dan isi per ikat dicek ulang; ukuran dibandingkan dengan toleransi klaim.",
   },
   {
     label: "Kelengkapan Dokumentasi",
@@ -152,6 +152,7 @@ export const CRITERIA_EXPLAINER = [
 ];
 
 export const VERIFY_PAGE = {
+  tryAnotherCode: "Coba kode lain",
   methodTitle: "Bagaimana VMS menilai",
   method:
     "Grader VMS mengambil sampel fisik di tiga titik berbeda dalam satu batch — Atas, Tengah, dan Bawah — lalu menilai kemurnian dan kebersihan di tiap titik. Skor akhir menggabungkan lima kriteria dengan bobot tetap, dan grade ditentukan dari skor akhir.",
@@ -455,6 +456,8 @@ export const EFFECTIVE_CERTIFICATE_LABELS = {
 } as const;
 
 export const PUBLIC_TEXT = {
+  gradeEyebrow: "HASIL YANG MUDAH DIBACA / 03",
+  criteriaEyebrow: "DI BALIK ANGKA / 04",
   heroDescription:
     "Bukti nyata di balik setiap batch sisa produksi. VMS memeriksa sampel di tiga titik dan mengubah hasilnya menjadi grade yang bisa diverifikasi siapa saja. Pilot saat ini: Kayu Solid.",
   materialNav: "Material",
