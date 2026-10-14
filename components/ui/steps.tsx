@@ -27,7 +27,7 @@ export function Steps({
               <div
                 aria-current={state === "current" ? "step" : undefined}
                 className={cn(
-                  "flex h-full items-center gap-2 border-b-2 px-3 py-2.5",
+                  "flex h-full flex-col items-center gap-1 border-b-2 px-2 py-2.5 sm:flex-row sm:gap-2 sm:px-3",
                   state === "current" && "border-brand text-ink",
                   state === "done" && "border-brand/40 text-ink-muted",
                   state === "todo" && "border-transparent text-ink-muted",
@@ -42,7 +42,9 @@ export function Steps({
                 >
                   {index + 1}
                 </span>
-                <span className="truncate text-sm font-medium">{step}</span>
+                <span className="w-full text-center text-xs font-medium sm:w-auto sm:text-left sm:text-sm">
+                  {step}
+                </span>
               </div>
             </li>
           );

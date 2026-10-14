@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { ERRORS, REVISION_TEXT } from "@/lib/text";
+import { GS_FIXTURE } from "@/lib/scoring/__tests__/fixtures";
 import { rejectNonB3FindingAction, submitGradingAction } from "./actions";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/audit", () => ({
@@ -154,8 +155,21 @@ describe("P12/A35: temuan Non-B3 setelah gerbang", () => {
   });
   it("submit tanpa konfirmasi ulang gagal sebelum akses database", async () => {
     expect(
-      (await submitGradingAction({ nonB3Reconfirmed: false })).error,
-    ).toBeDefined();
+      (
+        await submitGradingAction({
+          batchId: "aaaaaaaa-0000-4000-8000-000000000001",
+          samplePoints: GS_FIXTURE.samplePoints,
+          quantity: {
+            actualWeightKg: 384,
+            countChecks: GS_FIXTURE.quantity.countChecks,
+            specUnitsPassed: 25,
+            specUnitsChecked: 30,
+          },
+          documentation: GS_FIXTURE.documentation,
+          nonB3Reconfirmed: false,
+        })
+      ).error,
+    ).toBe(REVISION_TEXT.nonB3ReconfirmRequired);
     expect(createSupabaseServerClient).not.toHaveBeenCalled();
   });
 });
