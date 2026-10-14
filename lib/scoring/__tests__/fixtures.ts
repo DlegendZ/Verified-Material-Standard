@@ -1,3 +1,5 @@
+import { DEMO_SPECS } from "../../../scripts/demo-specs";
+import { canonicalCountChecks } from "@/lib/grading-input";
 import { findSeedCategory } from "@/lib/categories";
 import type {
   CategoryConfig,
@@ -20,75 +22,21 @@ export const WEIGHT_ONLY: CategoryConfig = {
       s.subKey === "weight_accuracy" ? { ...s, weightPct: 100 } : s,
     ),
 };
+const workedExample = DEMO_SPECS.find((s) => s.batchCode === "DEMO-B-002")!;
 export const GS_FIXTURE: GradingInput = {
   category: SOLID_WOOD,
   samplingProfile: BUNDLE_PROFILE,
-  samplePoints: [
-    {
-      point: "top",
-      odorLevel: 1,
-      scores: { species_match: 92, uniformity: 85, moisture: 90, odor: 95 },
-      unitCounts: {
-        biological_damage: { passed: 10, checked: 10 },
-        foreign_contaminant: { passed: 10, checked: 10 },
-        physical_defect: { passed: 8, checked: 10 },
-      },
-      measurementMethods: { moisture: "touch_estimate" },
-    },
-    {
-      point: "middle",
-      odorLevel: 1,
-      scores: { species_match: 90, uniformity: 80, moisture: 85, odor: 90 },
-      unitCounts: {
-        biological_damage: { passed: 9, checked: 10 },
-        foreign_contaminant: { passed: 8, checked: 10 },
-        physical_defect: { passed: 7, checked: 10 },
-      },
-      measurementMethods: { moisture: "touch_estimate" },
-    },
-    {
-      point: "bottom",
-      odorLevel: 2,
-      scores: { species_match: 80, uniformity: 70, moisture: 55, odor: 70 },
-      unitCounts: {
-        biological_damage: { passed: 8, checked: 10 },
-        foreign_contaminant: { passed: 10, checked: 10 },
-        physical_defect: { passed: 7, checked: 10 },
-      },
-      measurementMethods: { moisture: "touch_estimate" },
-    },
-  ],
+  samplePoints: workedExample.samplePoints,
   quantity: {
-    claimedWeightKg: 400,
-    actualWeightKg: 384,
-    countChecks: [
-      {
-        key: "units_per_bundle_top",
-        label: "Isi ikat Atas",
-        claimed: 20,
-        observed: 20,
-      },
-      {
-        key: "units_per_bundle_middle",
-        label: "Isi ikat Tengah",
-        claimed: 20,
-        observed: 19,
-      },
-      {
-        key: "units_per_bundle_bottom",
-        label: "Isi ikat Bawah",
-        claimed: 20,
-        observed: 20,
-      },
-    ],
-    specUnits: { passed: 25, checked: 30 },
+    claimedWeightKg: workedExample.claimedWeightKg,
+    actualWeightKg: workedExample.quantity.actualWeightKg,
+    countChecks: canonicalCountChecks(
+      workedExample.claimedSpecDetail,
+      workedExample.quantity.countChecks,
+    ),
+    specUnits: workedExample.quantity.specUnits,
   },
-  documentation: {
-    hasProductionDate: true,
-    hasMultiAnglePhotos: true,
-    hasLotNumber: false,
-    hasLabTest: false,
-  },
+  documentation: workedExample.documentation,
 };
 export function flatPoints(
   value = 100,
