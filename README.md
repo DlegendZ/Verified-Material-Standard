@@ -130,7 +130,11 @@ $env:E2E_CERTIFICATE_CODE = "VMS-..."  # kode DEMO-B-002, skor 77/B
 npm run test:e2e
 ```
 
-Tanpa kode tersebut, tes sertifikat DB dilewati. Hasil lokal 14 Oktober 2026: 130 unit test, coverage engine 100%, typecheck/lint/build hijau; 10 tes publik desktop/390px lolos, 2 tes sertifikat DB dilewati. Tes full-flow akun/DB belum dijalankan untuk revisi v1.3.1.
+Tanpa kode tersebut, tes sertifikat DB dilewati. Hasil verifikasi 14 Oktober 2026: **130 unit test** lolos, coverage engine **100%** pada seluruh metrik, typecheck/lint/build hijau, dan **20 tes Playwright** lolos pada desktop serta 390px. QA memakai Chrome terpasang, origin localhost yang sama dengan redirect login, dan timeout assertion 15 detik untuk cold login.
+
+Migrasi 0004 + seed referensi dan tujuh batch demo berhasil dijalankan ke Supabase setelah persetujuan pemilik. Alur pabrik → Admin → grader → Admin → publik berhasil pada 390/1280px: **77/B**, masa berlaku **42 hari**, audit konfirmasi ulang Non-B3, QR dan PDF tersimpan. PDF terbit aktual diperiksa sebagai satu halaman A4. Penolakan Non-B3 setelah gate juga berhasil pada kedua viewport, tanpa skor/sertifikat dan dengan draft dihapus.
+
+RLS/RPC publik dan constraint profil-kategori, jumlah unit serta masa berlaku diuji langsung; probe constraint di-rollback. Hasil ini memverifikasi skenario demo yang diuji. Validasi ahli, uji lapangan, scan massal dan deployment masih tugas tim; Fase 13 badge/pratinjau listing tetap opsional.
 
 Scoring engine (`lib/scoring/`) wajib hijau 100% sebelum perubahan apa pun di-merge —
 rumus di situ adalah IP inti VMS.
