@@ -1,3 +1,7 @@
+import { getLocale } from "@/lib/locale-server";
+import { categoryName, profileName } from "@/lib/public-english";
+import { claimedSpecSummary } from "@/lib/claims";
+import { BatchDocuments } from "@/components/batch-documents";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
 import { SamplingGuide } from "@/components/sampling-guide";
@@ -43,6 +47,8 @@ export default async function GraderBatchPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const locale = await getLocale();
+  const en = locale === "en";
   const { id } = await params;
   const user = await requireRole("grader");
   const supabase = await createSupabaseServerClient();
@@ -90,6 +96,18 @@ export default async function GraderBatchPage({
     batch.material_categories ?? { code: "unknown", name: "—" },
     criteria ?? [],
   );
+  const materialLabel = categoryName(locale, category.code, category.name);
+  const profile = batch.material_form_profiles;
+  const claim =
+    en && batch.claimed_spec_detail && profile && batch.declared_material_type
+      ? claimedSpecSummary(
+          batch.claimed_spec_detail,
+          { name: profileName(locale, profile.code, profile.name) },
+          batch.declared_material_type,
+          batch.claimed_weight_kg,
+          locale,
+        )
+      : batch.claimed_spec;
 
   const gatePassed =
     gate?.non_b3_pass === true &&
@@ -100,8 +118,8 @@ export default async function GraderBatchPage({
     <div className="space-y-5">
       <PageHeader
         title={batch.batch_code}
-        description={BATCH_STATUS_HINT[batch.status]}
-        action={<BatchStatusBadge status={batch.status} />}
+        description={en ? undefined : BATCH_STATUS_HINT[batch.status]}
+        action={<BatchStatusBadge status={batch.status} locale={locale} />}
       />
 
       <Panel>
@@ -111,33 +129,43 @@ export default async function GraderBatchPage({
         />
         <PanelBody>
           <dl>
-            <DataRow label="Kategori material" value={category.name} />
             <DataRow
-              label="Klaim berat"
-              value={formatWeight(batch.claimed_weight_kg)}
+              label={en ? "Material category" : "Kategori material"}
+              value={materialLabel}
+            />
+            <DataRow
+              label={en ? "Declared weight" : "Klaim berat"}
+              value={formatWeight(batch.claimed_weight_kg, locale)}
               mono
             />
             <DataRow
-              label="Klaim spesifikasi"
-              value={batch.claimed_spec ?? "—"}
-            />
-            <DataRow label="Nomor lot" value={batch.lot_number ?? "—"} mono />
-            <DataRow
-              label="Tanggal produksi"
-              value={formatDate(batch.production_date)}
+              label={en ? "Declared specifications" : "Klaim spesifikasi"}
+              value={claim ?? "—"}
             />
             <DataRow
-              label="Kontak di lokasi"
+              label={en ? "Lot number" : "Nomor lot"}
+              value={batch.lot_number ?? "—"}
+              mono
+            />
+            <DataRow
+              label={en ? "Production date" : "Tanggal produksi"}
+              value={formatDate(batch.production_date, locale)}
+            />
+            <DataRow
+              label={en ? "On-site contact" : "Kontak di lokasi"}
               value={batch.factories?.contact_person ?? "—"}
             />
           </dl>
         </PanelBody>
       </Panel>
 
+      <BatchDocuments supabase={supabase} batchId={batch.id} />
+
       <SamplingGuide
-        categoryName={category.name}
+        locale={locale}
+        categoryName={materialLabel}
         profile={batch.material_form_profiles}
-        claimedSpec={batch.claimed_spec}
+        claimedSpec={claim}
         thresholdDisclaimer={
           batch.material_categories?.threshold_disclaimer ?? null
         }
@@ -146,8 +174,16 @@ export default async function GraderBatchPage({
       {batch.status === "rejected_gate" ? (
         <Panel className="border-danger">
           <PanelHeader
-            title="Batch ditolak di gerbang wajib"
-            description="Proses berhenti di sini. Tidak ada skor dan tidak ada sertifikat."
+            title={
+              en
+                ? "Batch rejected at the gate"
+                : "Batch ditolak di gerbang wajib"
+            }
+            description={
+              en
+                ? "Assessment stopped. No score or certificate was issued."
+                : "Proses berhenti di sini. Tidak ada skor dan tidak ada sertifikat."
+            }
           />
           {gate?.notes ? (
             <PanelBody>
@@ -158,23 +194,31 @@ export default async function GraderBatchPage({
       ) : grading ? (
         <Panel>
           <PanelHeader
-            title="Hasil sudah dikirim"
-            description="Menunggu Admin meninjau dan menerbitkan sertifikat."
+            title={en ? "Assessment submitted" : "Hasil sudah dikirim"}
+            description={
+              en
+                ? "Waiting for an administrator to review and issue the certificate."
+                : "Menunggu Admin meninjau dan menerbitkan sertifikat."
+            }
           />
           <PanelBody className="space-y-5">
             <GradeStamp
+              locale={locale}
               grade={grading.grade}
               finalScore={grading.final_score}
             />
             <FinalScoreBreakdown
+              locale={locale}
               breakdown={grading.breakdown_json}
               scoringVersion={grading.scoring_version}
             />
             <SamplePointTable
+              locale={locale}
               breakdown={grading.breakdown_json}
               scoringVersion={grading.scoring_version}
             />
             <ConsistencyNote
+              locale={locale}
               breakdown={grading.breakdown_json}
               scoringVersion={grading.scoring_version}
             />
@@ -183,8 +227,14 @@ export default async function GraderBatchPage({
       ) : !gatePassed ? (
         <Panel>
           <PanelHeader
-            title="Langkah 1 — Gerbang wajib"
-            description="Tiga pemeriksaan pass/fail sebelum skoring dibuka."
+            title={
+              en ? "Step 1 — Required gate checks" : "Langkah 1 — Gerbang wajib"
+            }
+            description={
+              en
+                ? "Three checks must pass before scoring can start."
+                : "Tiga pemeriksaan pass/fail sebelum skoring dibuka."
+            }
           />
           <PanelBody>
             <GateForm
@@ -216,7 +266,9 @@ export default async function GraderBatchPage({
         />
       ) : (
         <p role="alert" className="text-danger">
-          {ERRORS.profileRequired}
+          {en
+            ? "This batch needs a material form profile before it can be assessed."
+            : ERRORS.profileRequired}
         </p>
       )}
     </div>

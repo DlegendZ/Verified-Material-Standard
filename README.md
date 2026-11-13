@@ -15,6 +15,10 @@ Engine **2.0.0**: fixture GS §10 menghasilkan **77/B**, variasi Bau Bawah Level
 
 FAQ di `/tentang`; `/proses-keberatan` hanya layar konsep statis, pengajuan manual ke Admin. VMS tidak menentukan harga. Badge unduhan/pratinjau listing (Fase 13) belum dikerjakan, opsional.
 
+Pilih **EN / ID** di bagian atas halaman. Isi yang dimasukkan pengguna dan PDF sertifikat asli tetap dalam bahasa sumbernya. Di `/katalog`, pembeli bisa mencari material/pabrik, menyaring grade, dan membuka sertifikat aktif. Sorotan pabrik didasarkan pada jumlah batch Grade A yang masih bersertifikat.
+
+Di **Admin → Grader**, tandai grader yang berhalangan sebagai tidak tersedia untuk penugasan baru. Pabrik dapat menghapus draft miliknya setelah konfirmasi. Unggahan asal-usul, hasil lab, dan dokumen lain menerima PDF atau gambar; lampiran privat dapat dibuka dari detail batch oleh pabrik pemilik, grader yang ditugaskan, dan admin.
+
 ## Prasyarat
 
 | Kebutuhan | Versi |
@@ -55,7 +59,7 @@ npm run db:push
 ```
 
 Perintah itu untuk **database kosong** dan menjalankan `0001_init.sql`, `0002_rls.sql`,
-`0003_grading_results_delete.sql`, `0004_kayu_solid_pilot.sql`, lalu `seed.sql` secara berurutan. Ini
+`0003_grading_results_delete.sql`, `0004_kayu_solid_pilot.sql`, `0005_demo_workflows.sql`, lalu `seed.sql` secara berurutan. Ini
 perintah manual yang dijalankan dari mesin sendiri, bukan bagian dari proses deploy.
 
 Untuk pendaftaran dengan konfirmasi email, tambahkan `NEXT_PUBLIC_SITE_URL/sign-in`
@@ -65,19 +69,26 @@ project Supabase. Untuk demo lokal, `http://localhost:3000/sign-in` hanya bisa
 dibuka dari komputer yang menjalankan aplikasi. Setelah membuka tautan konfirmasi,
 pengguna masuk memakai email dan kata sandi yang didaftarkan.
 
-Alternatif tanpa skrip pada database kosong: jalankan kelima file di SQL Editor dengan urutan yang sama.
+Alternatif tanpa skrip pada database kosong: jalankan file tersebut di SQL Editor dengan urutan yang sama.
 
-### Memperbarui database yang sudah ada ke v1.3
+### Memperbarui database yang sudah ada
+
+Bila database sudah menjalankan 0004, cukup jalankan migrasi baru; batch dan akun lama tidak perlu di-seed ulang:
+
+```powershell
+npm run db:push -- supabase/migrations/0005_demo_workflows.sql
+```
 
 Bila migrasi 0001–0003 sudah terpasang, jalankan **hanya**:
 
 ```powershell
 npm run db:push -- supabase/migrations/0004_kayu_solid_pilot.sql supabase/seed.sql
+npm run db:push -- supabase/migrations/0005_demo_workflows.sql
 Start-Sleep -Seconds 10
 npm run seed:demo
 ```
 
-Jangan menjalankan semua migrasi dari awal pada DB lama: migrasi 0001 akan gagal karena tipe sudah ada. Tunggu 10 detik agar cache skema PostgREST diperbarui sebelum seed. Seed demo mengganti batch berkode `DEMO-`, bukan batch lain. Catat kode sertifikat yang dicetak untuk `DEMO-B-002`, `DEMO-B-004` dan `DEMO-E-005`. File SQL dan skrip telah diperiksa lokal; eksekusi serta RLS/alur penuh di database v1.3 belum diverifikasi. Pemilik menjalankan perintah ini secara manual.
+Jangan menjalankan semua migrasi dari awal pada DB lama: migrasi 0001 akan gagal karena tipe sudah ada. Tunggu 10 detik agar cache skema PostgREST diperbarui sebelum seed. Seed demo mengganti batch berkode `DEMO-`, bukan batch lain. Catat kode sertifikat yang dicetak untuk `DEMO-B-002`, `DEMO-B-004` dan `DEMO-E-005`. Pemilik menjalankan perintah ini secara manual. Uji regresi SQL `supabase/tests/demo_workflows.sql` dijalankan hanya pada database uji dengan 0001–0005 terpasang.
 
 ### Data demo
 
@@ -158,6 +169,7 @@ Masa berlaku diatur per kategori di `material_categories.certificate_validity_da
 ```
 app/                    # routes (App Router)
   (public)/verify/[code]/   halaman verifikasi publik, tanpa login
+  (public)/katalog/         etalase sertifikat aktif dan pabrik Grade A
   (public)/tentang/         Tentang & FAQ
   (public)/proses-keberatan/ layar konsep keberatan
   (auth)/                   sign-in, sign-up
@@ -176,6 +188,7 @@ lib/
   public-categories.ts  # RPC anon + fallback aman
 scripts/demo-specs.ts    # input/oracle 7 batch fiktif
 supabase/migrations/0004_kayu_solid_pilot.sql # profil, klaim, metadata, RPC
+supabase/migrations/0005_demo_workflows.sql # draft, grader tersedia, lampiran, katalog
 supabase/migrations/    # SQL migrations
 supabase/seed.sql       # data referensi demo
 DECISIONS.md            # catatan keputusan teknis

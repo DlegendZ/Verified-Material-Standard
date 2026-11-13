@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { submitBatchAction } from "../../actions";
+import { useLocale } from "@/components/locale-provider";
 
 /** Mengirim batch ke antrian Admin. Setelah dikirim, berkas tidak bisa diubah. */
 export function SubmitBatchButton({
@@ -14,6 +15,7 @@ export function SubmitBatchButton({
   disabled?: boolean;
 }) {
   const router = useRouter();
+  const en = useLocale() === "en";
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +23,12 @@ export function SubmitBatchButton({
     setError(null);
     startTransition(async () => {
       const result = await submitBatchAction(batchId);
-      if (result.error) setError(result.error);
+      if (result.error)
+        setError(
+          en
+            ? "Could not submit the batch. Check your factory and batch details."
+            : result.error,
+        );
       else router.refresh();
     });
   }
@@ -29,7 +36,13 @@ export function SubmitBatchButton({
   return (
     <div className="space-y-2">
       <Button type="button" onClick={submit} disabled={disabled || pending}>
-        {pending ? "Mengirim…" : "Ajukan ke VMS"}
+        {pending
+          ? en
+            ? "Submitting…"
+            : "Mengirim…"
+          : en
+            ? "Submit to VMS"
+            : "Ajukan ke VMS"}
       </Button>
       {error ? (
         <p role="alert" className="text-sm font-medium text-danger">

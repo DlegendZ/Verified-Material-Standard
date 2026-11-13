@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/components/locale-provider";
 import { BATCH_FORM_TEXT } from "@/lib/text";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export function FactoryProfileForm({
 }: {
   factory: FactoryRow | null;
 }) {
+  const en = useLocale() === "en";
   const [state, formAction, pending] = useActionState(
     saveFactoryProfileAction,
     initialState,
@@ -29,7 +31,7 @@ export function FactoryProfileForm({
               role="alert"
               className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
             >
-              {state.error}
+              {en ? "Could not save the profile." : state.error}
             </p>
           ) : null}
           {state.ok ? (
@@ -37,14 +39,18 @@ export function FactoryProfileForm({
               role="status"
               className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
             >
-              Profil pabrik tersimpan.
+              {en ? "Factory profile saved." : "Profil pabrik tersimpan."}
             </p>
           ) : null}
 
           <Field
-            label="Nama badan usaha"
+            label={en ? "Legal business name" : "Nama badan usaha"}
             htmlFor="legalName"
-            hint={BATCH_FORM_TEXT.factoryNameHint}
+            hint={
+              en
+                ? "Use the name on your official business records."
+                : BATCH_FORM_TEXT.factoryNameHint
+            }
             error={state.fieldErrors?.legalName}
             required
           >
@@ -57,7 +63,7 @@ export function FactoryProfileForm({
           </Field>
 
           <Field
-            label="Alamat"
+            label={en ? "Address" : "Alamat"}
             htmlFor="address"
             error={state.fieldErrors?.address}
             required
@@ -71,7 +77,7 @@ export function FactoryProfileForm({
           </Field>
 
           <Field
-            label="Kota"
+            label={en ? "City" : "Kota"}
             htmlFor="city"
             error={state.fieldErrors?.city}
             required
@@ -85,9 +91,13 @@ export function FactoryProfileForm({
           </Field>
 
           <Field
-            label="Nama kontak"
+            label={en ? "Contact name" : "Nama kontak"}
             htmlFor="contactPerson"
-            hint="Orang yang menemui grader saat sampling."
+            hint={
+              en
+                ? "The person who meets the grader during sampling."
+                : "Orang yang menemui grader saat sampling."
+            }
             error={state.fieldErrors?.contactPerson}
             required
           >
@@ -100,7 +110,7 @@ export function FactoryProfileForm({
           </Field>
 
           <Field
-            label="Telepon kontak"
+            label={en ? "Contact phone" : "Telepon kontak"}
             htmlFor="contactPhone"
             error={state.fieldErrors?.contactPhone}
             required
@@ -115,7 +125,13 @@ export function FactoryProfileForm({
           </Field>
 
           <Button type="submit" disabled={pending}>
-            {pending ? "Menyimpan…" : "Simpan profil"}
+            {pending
+              ? en
+                ? "Saving…"
+                : "Menyimpan…"
+              : en
+                ? "Save profile"
+                : "Simpan profil"}
           </Button>
         </form>
       </PanelBody>

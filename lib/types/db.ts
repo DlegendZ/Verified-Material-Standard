@@ -35,6 +35,7 @@ export interface ProfileRow {
   id: string;
   full_name: string;
   role: UserRole;
+  grader_available: boolean;
   phone: string | null;
   created_at: string;
 }

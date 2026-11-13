@@ -1,3 +1,5 @@
+import { categoryName } from "@/lib/public-english";
+import { getLocale } from "@/lib/locale-server";
 import Link from "next/link";
 import { PageHeader } from "@/components/app-shell";
 import {
@@ -21,7 +23,7 @@ interface BatchListRow {
   status: BatchStatus;
   claimed_weight_kg: number;
   created_at: string;
-  material_categories: { name: string } | null;
+  material_categories: { code: string; name: string } | null;
   grading_results: { grade: GradeDb; final_score: number }[];
   certificates: {
     certificate_code: string;
@@ -30,7 +32,14 @@ interface BatchListRow {
   }[];
 }
 
-export default async function FactoryDashboardPage() {
+export default async function FactoryDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ draft?: string }>;
+}) {
+  const locale = await getLocale();
+  const en = locale === "en";
+  const { draft } = await searchParams;
   const user = await requireRole("factory");
   const supabase = await createSupabaseServerClient();
 
@@ -44,7 +53,7 @@ export default async function FactoryDashboardPage() {
     ? await supabase
         .from("batches")
         .select(
-          "id, batch_code, status, claimed_weight_kg, created_at, material_categories(name), grading_results(grade, final_score), certificates(certificate_code, status, valid_until)",
+          "id, batch_code, status, claimed_weight_kg, created_at, material_categories(code, name), grading_results(grade, final_score), certificates(certificate_code, status, valid_until)",
         )
         .eq("factory_id", factory.id)
         .order("created_at", { ascending: false })
@@ -55,17 +64,40 @@ export default async function FactoryDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {draft === "deleted" && (
+        <p role="status" className="rounded-xl bg-ok-soft p-3 text-sm text-ok">
+          {en ? "Draft deleted." : "Draft berhasil dihapus."}
+        </p>
+      )}
+      {draft === "cleanup-pending" && (
+        <p
+          role="alert"
+          className="rounded-xl bg-warning-soft p-3 text-sm text-warning"
+        >
+          {en
+            ? "Draft deleted, but some attachments could not be removed. Contact an administrator."
+            : "Draft dihapus, tapi sebagian lampiran belum terhapus. Hubungi Admin."}
+        </p>
+      )}
       <PageHeader
-        title={factory ? factory.legal_name : "Dashboard pabrik"}
+        title={
+          factory
+            ? factory.legal_name
+            : en
+              ? "Factory dashboard"
+              : "Dashboard pabrik"
+        }
         description={
           factory
-            ? `${factory.city} · ${list.length} batch terdaftar`
-            : "Lengkapi profil pabrik untuk mulai mengajukan batch."
+            ? `${factory.city} · ${list.length} ${en ? "registered batches" : "batch terdaftar"}`
+            : en
+              ? "Complete your factory profile to submit a batch."
+              : "Lengkapi profil pabrik untuk mulai mengajukan batch."
         }
         action={
           factory ? (
             <Link href="/factory/batches/new">
-              <Button>Ajukan batch</Button>
+              <Button>{en ? "Submit a batch" : "Ajukan batch"}</Button>
             </Link>
           ) : null
         }
@@ -73,34 +105,49 @@ export default async function FactoryDashboardPage() {
 
       {!factory ? (
         <EmptyState
-          title="Profil pabrik belum diisi"
-          description="Admin VMS perlu data pabrik untuk memverifikasi kamu sebelum batch pertama bisa diajukan."
+          title={en ? "No factory profile yet" : "Profil pabrik belum diisi"}
+          description={
+            en
+              ? "VMS needs your factory details before it can verify your factory and accept a batch."
+              : "Admin VMS perlu data pabrik untuk memverifikasi kamu sebelum batch pertama bisa diajukan."
+          }
           action={
             <Link href="/factory/profile">
-              <Button>Isi profil pabrik</Button>
+              <Button>
+                {en ? "Complete factory profile" : "Isi profil pabrik"}
+              </Button>
             </Link>
           }
         />
       ) : (
         <Panel>
           <PanelHeader
-            title="Status verifikasi pabrik"
-            action={<FactoryStatusBadge status={factory.verification_status} />}
+            title={en ? "Factory verification" : "Status verifikasi pabrik"}
+            action={
+              <FactoryStatusBadge
+                status={factory.verification_status}
+                locale={locale}
+              />
+            }
           />
           <PanelBody>
             {factory.verification_status === "verified" ? (
               <p className="text-sm text-ink-muted">
-                Pabrik terverifikasi sejak {formatDate(factory.verified_at)}.
-                Kamu bisa mengajukan batch kapan saja.
+                {en
+                  ? `Your factory has been verified since ${formatDate(factory.verified_at, locale)}. You can submit batches now.`
+                  : `Pabrik terverifikasi sejak ${formatDate(factory.verified_at)}. Kamu bisa mengajukan batch kapan saja.`}
               </p>
             ) : factory.verification_status === "pending" ? (
               <p className="text-sm text-ink-muted">
-                {ERRORS.factoryNotVerified}
+                {en
+                  ? "Your factory must be verified before submitting a batch."
+                  : ERRORS.factoryNotVerified}
               </p>
             ) : (
               <p className="text-sm text-danger">
-                Verifikasi pabrik ditolak. Perbaiki data profil lalu hubungi
-                Admin VMS.
+                {en
+                  ? "Verification was rejected. Correct the profile and contact a VMS administrator."
+                  : "Verifikasi pabrik ditolak. Perbaiki data profil lalu hubungi Admin VMS."}
               </p>
             )}
           </PanelBody>
@@ -108,15 +155,20 @@ export default async function FactoryDashboardPage() {
       )}
 
       <Panel>
-        <PanelHeader title="Batch kamu" description="Urut dari yang terbaru." />
+        <PanelHeader
+          title={en ? "Your batches" : "Batch kamu"}
+          description={en ? "Newest first." : "Urut dari yang terbaru."}
+        />
         {list.length === 0 ? (
           <PanelBody>
             <EmptyState
-              title={EMPTY_STATES.noBatches}
+              title={en ? "No batches yet" : EMPTY_STATES.noBatches}
               action={
                 factory ? (
                   <Link href="/factory/batches/new">
-                    <Button size="sm">Ajukan batch pertama</Button>
+                    <Button size="sm">
+                      {en ? "Submit a batch" : "Ajukan batch"} pertama
+                    </Button>
                   </Link>
                 ) : null
               }
@@ -139,9 +191,15 @@ export default async function FactoryDashboardPage() {
                         {batch.batch_code}
                       </p>
                       <p className="text-sm text-ink-muted">
-                        {batch.material_categories?.name ?? "—"} ·{" "}
-                        {formatWeight(batch.claimed_weight_kg)} ·{" "}
-                        {formatDate(batch.created_at)}
+                        {batch.material_categories
+                          ? categoryName(
+                              locale,
+                              batch.material_categories.code,
+                              batch.material_categories.name,
+                            )
+                          : "—"}{" "}
+                        · {formatWeight(batch.claimed_weight_kg, locale)} ·{" "}
+                        {formatDate(batch.created_at, locale)}
                       </p>
                     </div>
                     {certificate ? (
@@ -150,14 +208,16 @@ export default async function FactoryDashboardPage() {
                         {certificate.status === "issued" &&
                         daysUntil(certificate.valid_until) > 0 ? (
                           <span className="mt-1 block font-sans">
-                            {BATCH_FORM_TEXT.remainingDays(
-                              daysUntil(certificate.valid_until),
-                            )}
+                            {en
+                              ? `${daysUntil(certificate.valid_until)} days left`
+                              : BATCH_FORM_TEXT.remainingDays(
+                                  daysUntil(certificate.valid_until),
+                                )}
                           </span>
                         ) : null}
                       </span>
                     ) : null}
-                    <BatchStatusBadge status={batch.status} />
+                    <BatchStatusBadge status={batch.status} locale={locale} />
                   </Link>
                 </li>
               );

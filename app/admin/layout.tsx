@@ -18,6 +18,7 @@ export default async function AdminLayout({
       nav={[
         { href: "/admin", label: "Dashboard" },
         { href: "/admin/factories", label: "Pabrik" },
+        { href: "/admin/graders", label: "Grader" },
         { href: "/admin/certificates", label: "Sertifikat" },
         { href: "/admin/categories", label: "Kategori & bobot" },
       ]}

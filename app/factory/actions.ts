@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { generateBatchCode, claimedSpecSummary } from "@/lib/certificate";
 import {
@@ -10,6 +11,8 @@ import {
   requireRole,
 } from "@/lib/supabase/server";
 import { ERRORS } from "@/lib/text";
+import { BUCKETS, batchFileType, isBatchFilePath } from "@/lib/storage";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   FactoryRow,
   MaterialFormProfileRow,
@@ -275,7 +278,10 @@ export async function submitBatchAction(batchId: string): Promise<ActionState> {
     const { error } = await supabase
       .from("batches")
       .update({ status: "submitted" })
-      .eq("id", batchId);
+      .eq("id", batchId)
+      .eq("status", "draft")
+      .select("id")
+      .single();
     if (error) return { error: error.message };
 
     await writeAudit(supabase, {
@@ -294,6 +300,53 @@ export async function submitBatchAction(batchId: string): Promise<ActionState> {
   }
 }
 
+export async function deleteDraftBatchAction(
+  batchId: string,
+): Promise<ActionState> {
+  let cleanupFailed = false;
+  try {
+    await requireRole("factory");
+    if (!z.uuid().safeParse(batchId).success)
+      return { error: ERRORS.unauthorized };
+    const supabase = await createSupabaseServerClient();
+    let storage: ReturnType<typeof createSupabaseAdminClient>["storage"];
+    try {
+      storage = createSupabaseAdminClient().storage;
+    } catch {
+      return { error: "Penyimpanan belum siap. Draft belum dihapus." };
+    }
+    const { data, error } = await supabase.rpc("delete_factory_draft", {
+      p_batch: batchId,
+    });
+    if (error) return { error: "Draft gagal dihapus. Coba lagi." };
+    if (!data)
+      return { error: "Hanya draft milik pabrikmu yang bisa dihapus." };
+
+    // Delete storage only after the database has confirmed this was an owned draft.
+    const files = data as { documents: string[]; photos: string[] };
+    const cleanup = await Promise.allSettled(
+      (["documents", "photos"] as const).map(async (kind) => {
+        const paths = files[kind].filter((path) =>
+          isBatchFilePath(batchId, path),
+        );
+        if (!paths.length) return;
+        const { error } = await storage.from(BUCKETS[kind]).remove(paths);
+        if (error) throw error;
+      }),
+    );
+    cleanupFailed = cleanup.some((result) => result.status === "rejected");
+    if (cleanupFailed)
+      console.error("[draft cleanup] storage removal failed", { batchId });
+  } catch (error) {
+    if (error instanceof AuthorizationError) return { error: error.message };
+    throw error;
+  }
+  revalidatePath("/factory");
+  redirect(
+    cleanupFailed ? "/factory?draft=cleanup-pending" : "/factory?draft=deleted",
+  );
+}
+
 /**
  * Mencatat file yang sudah diunggah client ke Storage.
  *
@@ -302,11 +355,18 @@ export async function submitBatchAction(batchId: string): Promise<ActionState> {
  */
 export async function attachBatchFileAction(
   batchId: string,
-  kind: "photo" | "origin_doc" | "lab_test",
+  kind: "photo" | "origin_doc" | "lab_test" | "other",
   filePath: string,
 ): Promise<ActionState> {
   try {
     const user = await requireRole("factory");
+    if (
+      !z.uuid().safeParse(batchId).success ||
+      !isBatchFilePath(batchId, filePath) ||
+      !["photo", "origin_doc", "lab_test", "other"].includes(kind)
+    ) {
+      return { error: ERRORS.unauthorized };
+    }
     const supabase = await createSupabaseServerClient();
 
     const { data: batch } = await supabase
@@ -321,11 +381,23 @@ export async function attachBatchFileAction(
 
     if (!batch || batch.factories.owner_id !== user.id)
       return { error: ERRORS.unauthorized };
-    if (batch.status !== "draft" && batch.status !== "submitted") {
+    if (batch.status !== "draft") {
       return {
         error:
           "Batch ini sudah masuk proses penilaian, berkas tidak bisa diubah lagi.",
       };
+    }
+
+    const bucket = kind === "photo" ? BUCKETS.photos : BUCKETS.documents;
+    const { data: object, error: objectError } = await supabase.storage
+      .from(bucket)
+      .info(filePath);
+    if (
+      objectError ||
+      !object ||
+      !batchFileType(bucket, filePath, object.contentType)
+    ) {
+      return { error: "Berkas tidak ditemukan atau formatnya tidak didukung." };
     }
 
     const { error } =

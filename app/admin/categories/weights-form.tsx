@@ -1,5 +1,7 @@
 "use client";
 
+import { useLocale } from "@/components/locale-provider";
+import { criteriaHelpEn } from "@/lib/assessment-english";
 import { useActionState, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { updateCategoryWeightsAction, type ActionState } from "../actions";
@@ -20,6 +22,7 @@ export function CategoryWeightsForm({
   categoryId: string;
   criteria: CategoryCriterionRow[];
 }) {
+  const en = useLocale() === "en";
   const [state, formAction, pending] = useActionState(
     updateCategoryWeightsAction,
     initialState,
@@ -47,7 +50,9 @@ export function CategoryWeightsForm({
           role="alert"
           className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
         >
-          {state.error}
+          {en
+            ? "Could not save weights. Each criterion must add up to 100%."
+            : state.error}
         </p>
       ) : null}
       {state.ok ? (
@@ -55,7 +60,7 @@ export function CategoryWeightsForm({
           role="status"
           className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
         >
-          {state.message ?? "Tersimpan."}
+          {en ? "Weights saved." : (state.message ?? "Tersimpan.")}
         </p>
       ) : null}
 
@@ -68,7 +73,13 @@ export function CategoryWeightsForm({
         return (
           <fieldset key={criterion} className="space-y-2">
             <legend className="text-sm font-semibold text-ink">
-              {CRITERION_LABELS[criterion]}
+              {en
+                ? {
+                    purity: "Purity",
+                    cleanliness: "Cleanliness",
+                    quantity_accuracy: "Quantity accuracy",
+                  }[criterion]
+                : CRITERION_LABELS[criterion]}
             </legend>
 
             {rows.map((row) => (
@@ -77,10 +88,14 @@ export function CategoryWeightsForm({
                   htmlFor={`weight-${row.id}`}
                   className="min-w-0 flex-1 text-sm text-ink"
                 >
-                  {row.label}
+                  {en
+                    ? (criteriaHelpEn[row.sub_key]?.[0] ?? row.label)
+                    : row.label}
                   {row.is_odor ? (
                     <span className="block text-xs text-ink-muted">
-                      Sub-kriteria bau · cap override{" "}
+                      {en
+                        ? "Odor · override score"
+                        : "Sub-kriteria bau · cap override"}{" "}
                       {row.odor_override_cap ?? 40}
                     </span>
                   ) : null}
@@ -105,14 +120,21 @@ export function CategoryWeightsForm({
             <p
               className={`font-mono tabular text-sm ${valid ? "text-ink-muted" : "font-semibold text-danger"}`}
             >
-              Total {total}% {valid ? "" : "— wajib tepat 100%"}
+              Total {total}%{" "}
+              {valid ? "" : en ? "— must equal 100%" : "— wajib tepat 100%"}
             </p>
           </fieldset>
         );
       })}
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Menyimpan…" : "Simpan bobot"}
+        {pending
+          ? en
+            ? "Saving…"
+            : "Menyimpan…"
+          : en
+            ? "Save weights"
+            : "Simpan bobot"}
       </Button>
     </form>
   );

@@ -1,3 +1,4 @@
+import { getLocale } from "@/lib/locale-server";
 import Link from "next/link";
 import { PageHeader } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,8 @@ interface CertificateListRow extends CertificateRow {
 }
 
 export default async function AdminCertificatesPage() {
+  const locale = await getLocale();
+  const en = locale === "en";
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
 
@@ -44,12 +47,18 @@ export default async function AdminCertificatesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sertifikat"
-        description="Sertifikat yang dicabut tetap bisa dibuka publik, tapi halamannya menampilkan status TIDAK BERLAKU."
+        title={en ? "Certificates" : "Sertifikat"}
+        description={
+          en
+            ? "Revoked certificates can still be opened publicly and are marked as no longer valid."
+            : "Sertifikat yang dicabut tetap bisa dibuka publik, tapi halamannya menampilkan status TIDAK BERLAKU."
+        }
       />
 
       {list.length === 0 ? (
-        <EmptyState title={EMPTY_STATES.noCertificates} />
+        <EmptyState
+          title={en ? "No certificates yet" : EMPTY_STATES.noCertificates}
+        />
       ) : (
         list.map((certificate) => {
           const status = effectiveStatus(
@@ -75,11 +84,17 @@ export default async function AdminCertificatesPage() {
                             : "danger"
                       }
                     >
-                      {status === "valid"
-                        ? CERTIFICATE_STATUS_LABELS.issued
-                        : status === "expired"
-                          ? VERIFY_PAGE.expired
-                          : CERTIFICATE_STATUS_LABELS.revoked}
+                      {en
+                        ? {
+                            valid: "Valid",
+                            expired: "Expired",
+                            revoked: "Not valid",
+                          }[status]
+                        : status === "valid"
+                          ? CERTIFICATE_STATUS_LABELS.issued
+                          : status === "expired"
+                            ? VERIFY_PAGE.expired
+                            : CERTIFICATE_STATUS_LABELS.revoked}
                     </Badge>
                   </div>
                 }
@@ -87,27 +102,27 @@ export default async function AdminCertificatesPage() {
               <PanelBody className="space-y-4">
                 <dl>
                   <DataRow
-                    label="Kode batch"
+                    label={en ? "Batch code" : "Kode batch"}
                     value={certificate.batches?.batch_code ?? "—"}
                     mono
                   />
                   <DataRow
-                    label={CLAIM_TEXT.category}
+                    label={en ? "Material category" : CLAIM_TEXT.category}
                     value={
                       certificate.batches?.material_categories?.name ?? "—"
                     }
                   />
                   <DataRow
-                    label="Terbit"
-                    value={formatDate(certificate.issued_at)}
+                    label={en ? "Issued" : "Terbit"}
+                    value={formatDate(certificate.issued_at, locale)}
                   />
                   <DataRow
-                    label="Berlaku sampai"
-                    value={formatDate(certificate.valid_until)}
+                    label={en ? "Valid until" : "Berlaku sampai"}
+                    value={formatDate(certificate.valid_until, locale)}
                   />
                   {certificate.revoke_reason ? (
                     <DataRow
-                      label="Alasan pencabutan"
+                      label={en ? "Reason for revocation" : "Alasan pencabutan"}
                       value={certificate.revoke_reason}
                     />
                   ) : null}
@@ -119,7 +134,7 @@ export default async function AdminCertificatesPage() {
                     target="_blank"
                     className="text-sm font-medium text-brand underline underline-offset-4"
                   >
-                    Buka halaman verifikasi
+                    {en ? "Open verification page" : "Buka halaman verifikasi"}
                   </Link>
                 </div>
 

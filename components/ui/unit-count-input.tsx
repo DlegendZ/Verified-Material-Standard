@@ -4,6 +4,8 @@ import { percentPassScore, unitPassPct } from "@/lib/scoring";
 import { formatScore } from "@/lib/format";
 import { Button } from "./button";
 import { Input } from "./field";
+import { useLocale } from "@/components/locale-provider";
+import { assessmentEn } from "@/lib/assessment-english";
 export function UnitCountInput({
   id,
   label,
@@ -23,6 +25,8 @@ export function UnitCountInput({
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {
+  const locale = useLocale();
+  const text = locale === "en" ? assessmentEn : GRADER_TEXT;
   const passed = value === "" ? NaN : Number(value);
   const valid = Number.isInteger(passed) && passed >= 0 && passed <= checked;
   function change(delta: number) {
@@ -41,7 +45,7 @@ export function UnitCountInput({
           type="button"
           variant="outline"
           disabled={disabled || (valid && passed === 0)}
-          aria-label={GRADER_TEXT.decrease(label)}
+          aria-label={text.decrease(label)}
           onClick={() => change(-1)}
           className="min-h-11 min-w-11 px-3"
         >
@@ -62,14 +66,14 @@ export function UnitCountInput({
           type="button"
           variant="outline"
           disabled={disabled || (valid && passed >= checked)}
-          aria-label={GRADER_TEXT.increase(label)}
+          aria-label={text.increase(label)}
           onClick={() => change(1)}
           className="min-h-11 min-w-11 px-3"
         >
           +
         </Button>
         <span className="text-sm text-ink-muted">
-          {GRADER_TEXT.outOf} <strong>{checked}</strong> {unitLabel}
+          {text.outOf} <strong>{checked}</strong> {unitLabel}
         </span>
       </div>
       <p
@@ -78,13 +82,16 @@ export function UnitCountInput({
         className="text-sm text-ink-muted"
       >
         {valid
-          ? GRADER_TEXT.unitSummary(
+          ? text.unitSummary(
               passed,
               checked,
-              formatScore(unitPassPct(passed, checked)),
-              formatScore(percentPassScore(unitPassPct(passed, checked))),
+              formatScore(unitPassPct(passed, checked), locale),
+              formatScore(
+                percentPassScore(unitPassPct(passed, checked)),
+                locale,
+              ),
             )
-          : GRADER_TEXT.notFilled}
+          : text.notFilled}
       </p>
     </div>
   );

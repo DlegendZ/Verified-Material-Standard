@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "./locale-provider";
 
 /**
  * Pencarian sertifikat manual, untuk orang yang menerima nomor lewat chat dan
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 export function VerifyCodeForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const router = useRouter();
   const [code, setCode] = useState("");
+  const en = useLocale() === "en";
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,7 +25,7 @@ export function VerifyCodeForm({ autoFocus = false }: { autoFocus?: boolean }) {
     <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row">
       <div className="flex-1">
         <label htmlFor="certificate-code" className="sr-only">
-          Nomor sertifikat
+          {en ? "Certificate number" : "Nomor sertifikat"}
         </label>
         <input
           id="certificate-code"
@@ -38,7 +40,7 @@ export function VerifyCodeForm({ autoFocus = false }: { autoFocus?: boolean }) {
         />
       </div>
       <Button type="submit" size="lg" className="rounded-xl">
-        Cek sertifikat
+        {en ? "Check certificate" : "Cek sertifikat"}
       </Button>
     </form>
   );

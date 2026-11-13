@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLocale } from "./locale-provider";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 export function CopyButton({
   value,
   label,
-  copiedLabel = "Tersalin",
+  copiedLabel,
   variant = "outline",
 }: {
   value: string;
@@ -16,6 +17,7 @@ export function CopyButton({
   copiedLabel?: string;
   variant?: "primary" | "outline" | "ghost";
 }) {
+  const locale = useLocale();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -30,8 +32,14 @@ export function CopyButton({
 
   return (
     <Button type="button" variant={variant} size="sm" onClick={copy}>
-      {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
-      {copied ? copiedLabel : label}
+      {copied ? (
+        <Check className="size-4" aria-hidden />
+      ) : (
+        <Copy className="size-4" aria-hidden />
+      )}
+      {copied
+        ? (copiedLabel ?? (locale === "en" ? "Copied" : "Tersalin"))
+        : label}
     </Button>
   );
 }

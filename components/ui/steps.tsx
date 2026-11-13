@@ -8,16 +8,15 @@ export function Steps({
   steps,
   current,
   className,
+  label = "Langkah penilaian",
 }: {
   steps: readonly string[];
   current: number;
   className?: string;
+  label?: string;
 }) {
   return (
-    <nav
-      aria-label="Langkah penilaian"
-      className={cn("border-b border-line", className)}
-    >
+    <nav aria-label={label} className={cn("border-b border-line", className)}>
       <ol className="flex items-stretch overflow-x-auto">
         {steps.map((step, index) => {
           const state =

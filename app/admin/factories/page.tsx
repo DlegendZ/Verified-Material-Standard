@@ -1,3 +1,4 @@
+import { getLocale } from "@/lib/locale-server";
 import { PageHeader } from "@/components/app-shell";
 import { FactoryStatusBadge } from "@/components/status-badges";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -10,6 +11,8 @@ import type { FactoryRow } from "@/lib/types/db";
 export const metadata = { title: "Verifikasi pabrik" };
 
 export default async function AdminFactoriesPage() {
+  const locale = await getLocale();
+  const en = locale === "en";
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
 
@@ -25,12 +28,20 @@ export default async function AdminFactoriesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pabrik"
-        description="Verifikasi memastikan pabrik yang mengajukan batch benar-benar ada dan bisa dihubungi."
+        title={en ? "Factories" : "Pabrik"}
+        description={
+          en
+            ? "Verification confirms that the factory exists and can be contacted."
+            : "Verifikasi memastikan pabrik yang mengajukan batch benar-benar ada dan bisa dihubungi."
+        }
       />
 
       {list.length === 0 ? (
-        <EmptyState title="Belum ada pabrik terdaftar." />
+        <EmptyState
+          title={
+            en ? "No registered factories." : "Belum ada pabrik terdaftar."
+          }
+        />
       ) : (
         list.map((factory) => (
           <Panel key={factory.id}>
@@ -38,22 +49,35 @@ export default async function AdminFactoriesPage() {
               title={factory.legal_name}
               description={factory.city}
               action={
-                <FactoryStatusBadge status={factory.verification_status} />
+                <FactoryStatusBadge
+                  status={factory.verification_status}
+                  locale={locale}
+                />
               }
             />
             <PanelBody className="space-y-4">
               <dl>
-                <DataRow label="Alamat" value={factory.address} />
-                <DataRow label="Kontak" value={factory.contact_person} />
-                <DataRow label="Telepon" value={factory.contact_phone} mono />
                 <DataRow
-                  label="Didaftarkan"
-                  value={formatDate(factory.created_at)}
+                  label={en ? "Address" : "Alamat"}
+                  value={factory.address}
+                />
+                <DataRow
+                  label={en ? "Contact" : "Kontak"}
+                  value={factory.contact_person}
+                />
+                <DataRow
+                  label={en ? "Phone" : "Telepon"}
+                  value={factory.contact_phone}
+                  mono
+                />
+                <DataRow
+                  label={en ? "Registered" : "Didaftarkan"}
+                  value={formatDate(factory.created_at, locale)}
                 />
                 {factory.verified_at ? (
                   <DataRow
-                    label="Diverifikasi"
-                    value={formatDate(factory.verified_at)}
+                    label={en ? "Verified" : "Diverifikasi"}
+                    value={formatDate(factory.verified_at, locale)}
                   />
                 ) : null}
               </dl>

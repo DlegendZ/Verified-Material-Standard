@@ -1,4 +1,7 @@
 "use client";
+import { useLocale } from "@/components/locale-provider";
+import { categoryName, profileName } from "@/lib/public-english";
+import { declarationsEn } from "@/lib/assessment-english";
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Input, Textarea } from "@/components/ui/field";
@@ -48,6 +51,52 @@ export function NewBatchForm({
   categories: MaterialCategoryRow[];
   profiles: MaterialFormProfileRow[];
 }) {
+  const locale = useLocale();
+  const en = locale === "en";
+  const claimText = en
+    ? {
+        ...CLAIM_TEXT,
+        category: "Material category",
+        formProfile: "Material form",
+        declaredMaterialType: "Declared wood species",
+        claimedWeightKg: "Total weight (kg)",
+        bundleCount: "Number of bundles",
+        unitsPerBundle: "Sticks per bundle",
+        crossSectionWidthCm: "Cross-section width (cm)",
+        crossSectionThicknessCm: "Cross-section thickness (cm)",
+        lengthCm: "Length (cm)",
+        crossSectionToleranceCm: "Cross-section tolerance (±cm)",
+        lengthToleranceCm: "Length tolerance (±cm)",
+        lengthMinCm: "Minimum length (cm)",
+        lengthMaxCm: "Maximum length (cm)",
+        crossSectionNote: "Cross-section notes",
+        woodExample: "Pine, teak, mahogany",
+        crossSectionExample: "2–4 cm thick",
+        weightHint:
+          "The grader will weigh the batch again. Convert other units to kilograms.",
+        toleranceHint:
+          "Enter the allowed difference from the declared dimension.",
+        summary: "Claim summary",
+      }
+    : CLAIM_TEXT;
+  const batchText = en
+    ? {
+        ...BATCH_FORM_TEXT,
+        steps: ["Material", "Claims", "Details", "Declarations"],
+        noCategories: "No material categories are open for submissions.",
+        productionDate: "Production date",
+        lotNumber: "Lot / traceability number",
+        description: "Additional notes",
+        documentationHint: "Adds 25 documentation points.",
+        previewHint:
+          "Enter the wood species, weight, dimensions, and tolerances to preview your claim.",
+        afterSave:
+          "After saving the draft, upload photos and proof of origin on the batch page, then submit it.",
+        saving: "Saving…",
+        save: "Save batch draft",
+      }
+    : BATCH_FORM_TEXT;
+  const declarationText = en ? declarationsEn : REVISION_TEXT.declarations;
   const [step, setStep] = useState(0);
   const [categoryId, setCategoryId] = useState("");
   const [profileId, setProfileId] = useState("");
@@ -86,6 +135,18 @@ export function NewBatchForm({
     {},
   );
   const errors = { ...state.fieldErrors, ...localErrors };
+  if (en)
+    for (const key of Object.keys(errors)) {
+      if (errors[key])
+        errors[key] =
+          key === "categoryId" || key === "formProfileId"
+            ? "Select an option."
+            : key === "declaredMaterialType"
+              ? "Enter at least two characters."
+              : key.startsWith("declarations")
+                ? "Confirm this declaration."
+                : "Enter a valid value.";
+    }
   const live = categories.filter((c) => c.status === "live");
   const profile = profiles.find(
     (p) => p.id === profileId && p.category_id === categoryId,
@@ -99,9 +160,10 @@ export function NewBatchForm({
     toNumber(weight) > 0
       ? claimedSpecSummary(
           parsedSpec.data,
-          profile,
+          { name: profileName(locale, profile.code, profile.name) },
           wood.trim(),
           toNumber(weight),
+          locale,
         )
       : null;
   const values = {
@@ -147,13 +209,17 @@ export function NewBatchForm({
     return (
       <Panel>
         <PanelBody>
-          <p className="text-ink-muted">{BATCH_FORM_TEXT.noCategories}</p>
+          <p className="text-ink-muted">{batchText.noCategories}</p>
         </PanelBody>
       </Panel>
     );
   return (
     <Panel>
-      <Steps steps={BATCH_FORM_TEXT.steps} current={step} />
+      <Steps
+        steps={batchText.steps}
+        current={step}
+        label={en ? "Submission steps" : "Langkah pengajuan"}
+      />
       <PanelBody>
         <form action={formAction} noValidate className="space-y-5">
           <input
@@ -166,13 +232,15 @@ export function NewBatchForm({
               role="alert"
               className="rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger"
             >
-              {state.error}
+              {en
+                ? "The draft could not be saved. Review the entered details."
+                : state.error}
             </p>
           ) : null}
           <div className={step === 0 ? "space-y-5" : "hidden"}>
             <fieldset className="space-y-3">
               <legend className="mb-2 text-sm font-semibold text-ink">
-                {CLAIM_TEXT.category}
+                {claimText.category}
               </legend>
               {live.map((c) => (
                 <label
@@ -193,10 +261,12 @@ export function NewBatchForm({
                   />
                   <span>
                     <span className="block font-semibold text-ink">
-                      {c.name}
+                      {categoryName(locale, c.code, c.name)}
                     </span>
                     <span className="block text-sm text-ink-muted">
-                      {c.short_description}
+                      {en && c.code === "solid_wood"
+                        ? "Solid wood offcuts from a factory or workshop."
+                        : c.short_description}
                     </span>
                   </span>
                 </label>
@@ -214,17 +284,20 @@ export function NewBatchForm({
                     className="rounded-xl border border-dashed border-line-strong bg-surface-sunken p-3"
                   >
                     <p className="font-medium text-ink-muted">
-                      {c.name} · {PUBLIC_TEXT.comingSoonBadge}
+                      {categoryName(locale, c.code, c.name)} ·{" "}
+                      {en ? "Coming soon" : PUBLIC_TEXT.comingSoonBadge}
                     </p>
                     <p className="mt-1 text-sm text-ink-muted">
-                      {REVISION_TEXT.comingSoon}
+                      {en
+                        ? "Assessment criteria are being validated. Submissions are not open."
+                        : REVISION_TEXT.comingSoon}
                     </p>
                   </div>
                 ))}
             </fieldset>
             <fieldset className="space-y-3">
               <legend className="mb-2 text-sm font-semibold text-ink">
-                {CLAIM_TEXT.formProfile}
+                {claimText.formProfile}
               </legend>
               {profiles
                 .filter((p) => p.category_id === categoryId)
@@ -247,16 +320,22 @@ export function NewBatchForm({
                     />
                     <span>
                       <span className="block font-semibold text-ink">
-                        {p.name}
+                        {profileName(locale, p.code, p.name)}
                       </span>
                       <span className="text-sm text-ink-muted">
-                        {p.description}
+                        {en
+                          ? p.claim_mode === "bundle"
+                            ? "Wood offcuts tied in bundles."
+                            : "Unbundled short solid wood offcuts."
+                          : p.description}
                       </span>
                     </span>
                   </label>
                 ))}
               <p className="text-sm text-ink-muted">
-                {REVISION_TEXT.singleFormNote}
+                {en
+                  ? "Each batch must have one material and one form. Separate mixed batches. Chips and sawdust are outside the pilot."
+                  : REVISION_TEXT.singleFormNote}
               </p>
               {errors.formProfileId ? (
                 <p role="alert" className="text-sm text-danger">
@@ -267,7 +346,7 @@ export function NewBatchForm({
           </div>
           <div className={step === 1 ? "space-y-5" : "hidden"}>
             <Field
-              label={CLAIM_TEXT.declaredMaterialType}
+              label={claimText.declaredMaterialType}
               htmlFor="declaredMaterialType"
               required
               error={errors.declaredMaterialType}
@@ -276,7 +355,7 @@ export function NewBatchForm({
                 id="declaredMaterialType"
                 name="declaredMaterialType"
                 value={wood}
-                placeholder={CLAIM_TEXT.woodExample}
+                placeholder={claimText.woodExample}
                 onChange={(e) => {
                   setWood(e.target.value);
                   clearError("declaredMaterialType");
@@ -285,10 +364,10 @@ export function NewBatchForm({
               />
             </Field>
             <Field
-              label={CLAIM_TEXT.claimedWeightKg}
+              label={claimText.claimedWeightKg}
               htmlFor="claimedWeightKg"
               required
-              hint={CLAIM_TEXT.weightHint}
+              hint={claimText.weightHint}
               error={errors.claimedWeightKg}
             >
               <Input
@@ -309,13 +388,13 @@ export function NewBatchForm({
               ).map((key) => (
                 <Field
                   key={key}
-                  label={CLAIM_TEXT[key]}
+                  label={claimText[key]}
                   htmlFor={key}
                   required
                   error={errors[`claimedSpecDetail.${key}`]}
                   hint={
                     key.includes("Tolerance")
-                      ? CLAIM_TEXT.toleranceHint
+                      ? claimText.toleranceHint
                       : undefined
                   }
                 >
@@ -337,14 +416,14 @@ export function NewBatchForm({
             </div>
             {profile?.claim_mode === "weight" ? (
               <Field
-                label={CLAIM_TEXT.crossSectionNote}
+                label={claimText.crossSectionNote}
                 htmlFor="crossSectionNote"
               >
                 <Input
                   id="crossSectionNote"
                   value={spec.crossSectionNote ?? ""}
                   maxLength={120}
-                  placeholder={CLAIM_TEXT.crossSectionExample}
+                  placeholder={claimText.crossSectionExample}
                   onChange={(e) =>
                     setSpec((s) => ({ ...s, crossSectionNote: e.target.value }))
                   }
@@ -355,19 +434,17 @@ export function NewBatchForm({
               aria-live="polite"
               className="rounded-xl bg-surface-sunken p-3 text-sm"
             >
-              <p className="mb-1 font-semibold text-ink">
-                {CLAIM_TEXT.summary}
-              </p>
+              <p className="mb-1 font-semibold text-ink">{claimText.summary}</p>
               <p className="text-ink-muted">
-                {summary ?? BATCH_FORM_TEXT.previewHint}
+                {summary ?? batchText.previewHint}
               </p>
             </div>
           </div>
           <div className={step === 2 ? "space-y-5" : "hidden"}>
             <Field
-              label={BATCH_FORM_TEXT.productionDate}
+              label={batchText.productionDate}
               htmlFor="productionDate"
-              hint={BATCH_FORM_TEXT.documentationHint}
+              hint={batchText.documentationHint}
               error={errors.productionDate}
             >
               <Input
@@ -381,9 +458,9 @@ export function NewBatchForm({
               />
             </Field>
             <Field
-              label={BATCH_FORM_TEXT.lotNumber}
+              label={batchText.lotNumber}
               htmlFor="lotNumber"
-              hint={BATCH_FORM_TEXT.documentationHint}
+              hint={batchText.documentationHint}
               error={errors.lotNumber}
             >
               <Input
@@ -397,7 +474,7 @@ export function NewBatchForm({
               />
             </Field>
             <Field
-              label={BATCH_FORM_TEXT.description}
+              label={batchText.description}
               htmlFor="description"
               error={errors.description}
             >
@@ -420,7 +497,7 @@ export function NewBatchForm({
               <div key={key}>
                 <Checkbox
                   name={key}
-                  label={REVISION_TEXT.declarations[key]}
+                  label={declarationText[key]}
                   checked={checked[key]}
                   onChange={(e) => {
                     setChecked((c) => ({ ...c, [key]: e.target.checked }));
@@ -435,11 +512,11 @@ export function NewBatchForm({
               </div>
             ))}
             <p className="text-sm text-ink-muted">
-              {REVISION_TEXT.declarationNote}
+              {en
+                ? "A grader still has to perform the required gate checks."
+                : REVISION_TEXT.declarationNote}
             </p>
-            <p className="text-sm text-ink-muted">
-              {BATCH_FORM_TEXT.afterSave}
-            </p>
+            <p className="text-sm text-ink-muted">{batchText.afterSave}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             {step > 0 ? (
@@ -449,19 +526,19 @@ export function NewBatchForm({
                 onClick={() => setStep(step - 1)}
                 disabled={pending}
               >
-                {ACTIONS.back}
+                {en ? "Back" : ACTIONS.back}
               </Button>
             ) : null}
             {step < 3 ? (
               <Button type="button" onClick={next}>
-                {ACTIONS.next}
+                {en ? "Next" : ACTIONS.next}
               </Button>
             ) : (
               <Button
                 type="submit"
                 disabled={pending || !Object.values(checked).every(Boolean)}
               >
-                {pending ? BATCH_FORM_TEXT.saving : BATCH_FORM_TEXT.save}
+                {pending ? batchText.saving : batchText.save}
               </Button>
             )}
           </div>

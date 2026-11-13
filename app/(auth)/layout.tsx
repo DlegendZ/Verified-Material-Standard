@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/wordmark";
+import { LocaleToggle } from "@/components/locale-toggle";
 
 export default function AuthLayout({
   children,
@@ -13,7 +14,10 @@ export default function AuthLayout({
         <Link href="/" className="rounded-xl">
           <Wordmark />
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <LocaleToggle />
+          <ThemeToggle />
+        </div>
       </header>
       <main className="mx-auto w-full max-w-md px-4 py-10 sm:px-6">
         {children}

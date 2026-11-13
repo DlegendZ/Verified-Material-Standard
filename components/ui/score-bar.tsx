@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import { formatScore } from "@/lib/format";
+import type { Locale } from "@/lib/locale";
 
 /**
  * Bar horizontal sederhana untuk rincian skor (SRD Bab 9.2: jangan chart berat).
@@ -12,6 +13,7 @@ export function ScoreBar({
   contribution,
   hint,
   className,
+  locale = "id",
 }: {
   label: string;
   score: number;
@@ -19,6 +21,7 @@ export function ScoreBar({
   contribution: number;
   hint?: string;
   className?: string;
+  locale?: Locale;
 }) {
   const clamped = Math.max(0, Math.min(100, score));
 
@@ -27,17 +30,21 @@ export function ScoreBar({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-sm font-medium text-ink">{label}</p>
         <p className="font-mono tabular text-sm text-ink">
-          {formatScore(score)}
+          {formatScore(score, locale)}
           <span className="text-ink-muted">
             {" "}
-            × {weightPct}% = {formatScore(contribution)}
+            × {weightPct}% = {formatScore(contribution, locale)}
           </span>
         </p>
       </div>
       <div
         className="mt-2 h-2 w-full bg-surface-sunken"
         role="img"
-        aria-label={`${label}: ${formatScore(score)} dari 100, bobot ${weightPct} persen`}
+        aria-label={
+          locale === "en"
+            ? `${label}: ${formatScore(score, locale)} out of 100, weight ${weightPct} percent`
+            : `${label}: ${formatScore(score)} dari 100, bobot ${weightPct} persen`
+        }
       >
         <div className="h-full bg-brand" style={{ width: `${clamped}%` }} />
       </div>

@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/locale-provider";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -18,6 +19,7 @@ export function IssueButtons({
   batchId: string;
   grade: GradeDb;
 }) {
+  const en = useLocale() === "en";
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -50,19 +52,33 @@ export function IssueButtons({
       {grade === "D" ? (
         <>
           <p className="border border-warning bg-warning-soft px-3 py-2 text-sm text-warning">
-            {ERRORS.gradeDNotCertifiable}
+            {en
+              ? "Grade D is below the certification threshold."
+              : ERRORS.gradeDNotCertifiable}
           </p>
           <Button
             variant="outline"
             onClick={markNotCertified}
             disabled={pending}
           >
-            {pending ? "Menyimpan…" : "Tandai tidak lolos"}
+            {pending
+              ? en
+                ? "Saving…"
+                : "Menyimpan…"
+              : en
+                ? "Mark not certified"
+                : "Tandai tidak lolos"}
           </Button>
         </>
       ) : (
         <Button onClick={issue} disabled={pending}>
-          {pending ? "Menerbitkan…" : "Terbitkan sertifikat"}
+          {pending
+            ? en
+              ? "Issuing…"
+              : "Menerbitkan…"
+            : en
+              ? "Issue certificate"
+              : "Terbitkan sertifikat"}
         </Button>
       )}
 
@@ -71,7 +87,7 @@ export function IssueButtons({
           role="status"
           className="border border-ok bg-ok-soft px-3 py-2 text-sm text-ok"
         >
-          {message}
+          {en ? "Certificate issued." : message}
         </p>
       ) : null}
       {error ? (
@@ -79,7 +95,7 @@ export function IssueButtons({
           role="alert"
           className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
         >
-          {error}
+          {en ? "Could not complete the certificate action." : error}
         </p>
       ) : null}
     </div>

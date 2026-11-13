@@ -1,25 +1,33 @@
+import { getLocale } from "@/lib/locale-server";
+import { objectionEn } from "@/lib/public-english";
 import { PublicShell } from "@/components/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Textarea } from "@/components/ui/field";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { OBJECTION_TEXT } from "@/lib/text";
-export const metadata = { title: OBJECTION_TEXT.title };
-export default function ObjectionPage() {
+export async function generateMetadata() {
+  return {
+    title:
+      (await getLocale()) === "en" ? objectionEn.title : OBJECTION_TEXT.title,
+  };
+}
+export default async function ObjectionPage() {
+  const copy = (await getLocale()) === "en" ? objectionEn : OBJECTION_TEXT;
   return (
     <PublicShell>
       <article className="space-y-6">
         <div>
-          <Badge tone="neutral">{OBJECTION_TEXT.badge}</Badge>
+          <Badge tone="neutral">{copy.badge}</Badge>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">
-            {OBJECTION_TEXT.title}
+            {copy.title}
           </h1>
           <p className="mt-4 text-base leading-7 text-ink-muted">
-            {OBJECTION_TEXT.introduction}
+            {copy.introduction}
           </p>
         </div>
         <ol className="space-y-4">
-          {OBJECTION_TEXT.steps.map((step, i) => (
+          {copy.steps.map((step, i) => (
             <li
               key={step.title}
               className="flex gap-4 rounded-2xl border border-line bg-surface p-4"
@@ -37,20 +45,18 @@ export default function ObjectionPage() {
           ))}
         </ol>
         <Panel>
-          <PanelHeader title={OBJECTION_TEXT.previewTitle} />
+          <PanelHeader title={copy.previewTitle} />
           <PanelBody>
             <fieldset disabled className="space-y-4">
-              <Field label={OBJECTION_TEXT.reason} htmlFor="objection-reason">
+              <Field label={copy.reason} htmlFor="objection-reason">
                 <Textarea id="objection-reason" disabled />
               </Field>
-              <Checkbox label={OBJECTION_TEXT.confirmation} disabled />
-              <Button disabled>{OBJECTION_TEXT.submit}</Button>
+              <Checkbox label={copy.confirmation} disabled />
+              <Button disabled>{copy.submit}</Button>
             </fieldset>
           </PanelBody>
         </Panel>
-        <p className="text-sm leading-7 text-ink-muted">
-          {OBJECTION_TEXT.closing}
-        </p>
+        <p className="text-sm leading-7 text-ink-muted">{copy.closing}</p>
       </article>
     </PublicShell>
   );

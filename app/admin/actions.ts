@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { generateCertificateCode, validUntilFrom } from "@/lib/certificate";
 import { renderCertificatePdf, renderQrPng } from "@/lib/certificate-assets";
@@ -78,19 +79,19 @@ export async function assignGraderAction(
 
     const supabase = await createSupabaseServerClient();
 
-    const { error: assignError } = await supabase.from("assignments").insert({
-      batch_id: parsed.data.batchId,
-      grader_id: parsed.data.graderId,
-      assigned_by: admin.id,
-      status: "open",
-    });
-    if (assignError) return { error: assignError.message };
-
-    const { error: statusError } = await supabase
-      .from("batches")
-      .update({ status: "assigned" })
-      .eq("id", parsed.data.batchId);
-    if (statusError) return { error: statusError.message };
+    const { data: assigned, error } = await supabase.rpc(
+      "assign_available_grader",
+      {
+        p_batch: parsed.data.batchId,
+        p_grader: parsed.data.graderId,
+      },
+    );
+    if (error) return { error: ERRORS.generic };
+    if (!assigned)
+      return {
+        error:
+          "Grader sudah tidak tersedia atau batch sudah tidak menunggu penugasan.",
+      };
 
     await writeAudit(supabase, {
       actorId: admin.id,
@@ -102,6 +103,45 @@ export async function assignGraderAction(
 
     revalidatePath("/admin");
     revalidatePath(`/admin/batches/${parsed.data.batchId}`);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AuthorizationError) return { error: error.message };
+    throw error;
+  }
+}
+
+export async function setGraderAvailabilityAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const admin = await requireRole("admin");
+    const parsed = z
+      .object({ id: z.uuid(), available: z.enum(["true", "false"]) })
+      .safeParse({
+        id: formData.get("graderId"),
+        available: formData.get("available"),
+      });
+    if (!parsed.success) return { error: ERRORS.generic };
+    const supabase = await createSupabaseServerClient();
+    const available = parsed.data.available === "true";
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ grader_available: available })
+      .eq("id", parsed.data.id)
+      .eq("role", "grader")
+      .select("id")
+      .single();
+    if (error || !data) return { error: "Ketersediaan grader gagal disimpan." };
+    await writeAudit(supabase, {
+      actorId: admin.id,
+      action: "grader.availability_changed",
+      entityType: "profile",
+      entityId: parsed.data.id,
+      payload: { available },
+    });
+    revalidatePath("/admin/graders");
+    revalidatePath("/admin/batches/[id]", "page");
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthorizationError) return { error: error.message };
@@ -273,6 +313,7 @@ export async function issueCertificateAction(
     revalidatePath("/admin");
     revalidatePath(`/admin/batches/${batchId}`);
     revalidatePath("/admin/certificates");
+    revalidatePath("/katalog");
     return { ok: true, message: `Sertifikat ${certificateCode} terbit.` };
   } catch (error) {
     if (error instanceof AuthorizationError) return { error: error.message };
@@ -343,6 +384,7 @@ export async function revokeCertificateAction(
     });
 
     revalidatePath("/admin/certificates");
+    revalidatePath("/katalog");
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthorizationError) return { error: error.message };

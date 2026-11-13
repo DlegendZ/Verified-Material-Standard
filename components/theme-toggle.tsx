@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useLocale } from "./locale-provider";
 
 /** Pilihan tema disimpan per browser; default mengikuti setelan sistem. */
 export function ThemeToggle() {
   const [dark, setDark] = useState(false);
+  const en = useLocale() === "en";
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -27,7 +29,15 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       className="inline-flex size-9 items-center justify-center rounded-full border border-line text-ink-muted hover:bg-surface-sunken hover:text-ink"
-      aria-label={dark ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
+      aria-label={
+        en
+          ? dark
+            ? "Switch to light mode"
+            : "Switch to dark mode"
+          : dark
+            ? "Ganti ke mode terang"
+            : "Ganti ke mode gelap"
+      }
     >
       {dark ? (
         <Sun className="size-4" aria-hidden />

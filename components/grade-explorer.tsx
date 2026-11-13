@@ -10,6 +10,13 @@ import {
   REVISION_TEXT,
 } from "@/lib/text";
 import type { GradeDb } from "@/lib/types/db";
+import { useLocale } from "./locale-provider";
+import {
+  gradeNamesEn,
+  gradeDescriptionsEn,
+  woodGradesEn,
+  gradeNoteEn,
+} from "@/lib/public-english";
 
 const GRADES: { grade: GradeDb; range: string; start: number; end: number }[] =
   [
@@ -24,16 +31,22 @@ export function GradeExplorer({
 }: {
   gradeMeanings?: Record<GradeDb, string> | null;
 }) {
-  const meanings =
-    gradeMeanings ??
-    PUBLIC_CATEGORY_FALLBACK.find((c) => c.code === "solid_wood")
-      ?.grade_meanings;
+  const en = useLocale() === "en";
+  const names = en ? gradeNamesEn : GRADE_MEANING;
+  const meanings = en
+    ? woodGradesEn
+    : (gradeMeanings ??
+      PUBLIC_CATEGORY_FALLBACK.find((c) => c.code === "solid_wood")
+        ?.grade_meanings);
   const [selectedGrade, setSelectedGrade] = useState<GradeDb>("B");
   const selected = GRADES.find((item) => item.grade === selectedGrade)!;
 
   return (
     <div className="grade-explorer">
-      <div className="grade-selector" aria-label="Jelajahi grade material">
+      <div
+        className="grade-selector"
+        aria-label={en ? "Explore material grades" : "Jelajahi grade material"}
+      >
         {GRADES.map(({ grade, range }) => (
           <button
             key={grade}
@@ -48,8 +61,8 @@ export function GradeExplorer({
               {grade}
             </span>
             <span className="grade-option-copy">
-              <strong>{GRADE_MEANING[grade]}</strong>
-              <small>{range}</small>
+              <strong>{names[grade]}</strong>
+              <small>{en && grade === "D" ? "below 55" : range}</small>
             </span>
             <ArrowUpRight className="grade-option-arrow size-4" aria-hidden />
           </button>
@@ -69,18 +82,20 @@ export function GradeExplorer({
           </span>
           <div className="grade-display-copy">
             <span className="grade-display-label">GRADE {selectedGrade}</span>
-            <h3>{GRADE_MEANING[selectedGrade]}</h3>
-            <p>{GRADE_DESCRIPTION[selectedGrade]}</p>
+            <h3>{names[selectedGrade]}</h3>
+            <p>
+              {(en ? gradeDescriptionsEn : GRADE_DESCRIPTION)[selectedGrade]}
+            </p>
             {meanings ? (
               <div className="mt-5 border-t border-current/20 pt-4">
                 <p className="text-sm font-semibold">
-                  {PUBLIC_TEXT.woodGradeTitle}
+                  {en ? "For solid wood" : PUBLIC_TEXT.woodGradeTitle}
                 </p>
                 <p className="mt-2 text-sm leading-relaxed">
                   {meanings[selectedGrade]}
                 </p>
                 <p className="mt-3 text-xs leading-relaxed opacity-90">
-                  {REVISION_TEXT.gradeMeaningNote}
+                  {en ? gradeNoteEn : REVISION_TEXT.gradeMeaningNote}
                 </p>
               </div>
             ) : null}
@@ -88,8 +103,10 @@ export function GradeExplorer({
         </div>
         <div className="grade-display-bottom">
           <div className="flex items-end justify-between gap-4">
-            <span>RENTANG SKOR</span>
-            <strong>{selected.range}</strong>
+            <span>{en ? "SCORE RANGE" : "RENTANG SKOR"}</span>
+            <strong>
+              {en && selectedGrade === "D" ? "below 55" : selected.range}
+            </strong>
           </div>
           <div className="grade-meter">
             <span

@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Textarea } from "@/components/ui/field";
 import { saveGateCheckAction, type ActionState } from "../../actions";
 import { GATES, GRADER_TEXT, REVISION_TEXT } from "@/lib/text";
+import { useLocale } from "@/components/locale-provider";
+import {
+  assessmentEn,
+  chemicalGateEn,
+  gatesEn,
+} from "@/lib/assessment-english";
 
 const initialState: ActionState = {};
 
@@ -22,6 +28,8 @@ export function GateForm({
   nonB3Extra?: string | null;
 }) {
   const action = saveGateCheckAction.bind(null, batchId);
+  const en = useLocale() === "en";
+  const text = en ? assessmentEn : GRADER_TEXT;
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
@@ -31,21 +39,23 @@ export function GateForm({
           role="alert"
           className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
         >
-          {state.error}
+          {en
+            ? "Could not save the gate checks. Refresh the batch and try again."
+            : state.error}
         </p>
       ) : null}
 
       <div className="space-y-2">
         <p className="rounded-xl bg-warning-soft p-3 text-sm text-warning">
-          {REVISION_TEXT.gateInspectHint}
+          {en ? chemicalGateEn : REVISION_TEXT.gateInspectHint}
         </p>
-        {GATES.map((gate) => (
+        {(en ? gatesEn : GATES).map((gate) => (
           <Checkbox
             key={gate.key}
             name={gate.key}
             label={gate.label}
             hint={
-              gate.key === "nonB3Pass"
+              !en && gate.key === "nonB3Pass"
                 ? [gate.hint, nonB3Extra].filter(Boolean).join(" ")
                 : gate.hint
             }
@@ -54,19 +64,22 @@ export function GateForm({
       </div>
 
       <Field
-        label={GRADER_TEXT.gateNotes}
+        label={text.gateNotes}
         htmlFor="notes"
-        hint={GRADER_TEXT.gateNotesHint}
-        error={state.fieldErrors?.notes}
+        hint={text.gateNotesHint}
+        error={
+          state.fieldErrors?.notes &&
+          (en ? text.gateNotesHint : state.fieldErrors.notes)
+        }
       >
         <Textarea id="notes" name="notes" />
       </Field>
 
       <Button type="submit" size="block" disabled={pending}>
-        {pending ? GRADER_TEXT.gateSaving : GRADER_TEXT.gateSave}
+        {pending ? text.gateSaving : text.gateSave}
       </Button>
 
-      <p className="text-sm text-ink-muted">{GRADER_TEXT.gateReminder}</p>
+      <p className="text-sm text-ink-muted">{text.gateReminder}</p>
     </form>
   );
 }

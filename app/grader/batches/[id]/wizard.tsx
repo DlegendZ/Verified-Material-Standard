@@ -1,4 +1,12 @@
 "use client";
+import { useLocale } from "@/components/locale-provider";
+import {
+  assessmentEn,
+  criteriaHelpEn,
+  nonB3En,
+  samplePointsEn,
+} from "@/lib/assessment-english";
+import { categoryName, woodGradesEn } from "@/lib/public-english";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import {
@@ -135,6 +143,11 @@ export function GradingWizard({
     (filePath: string) => Promise<{ error?: string }>
   >;
 }) {
+  const locale = useLocale();
+  const en = locale === "en";
+  const text = en ? assessmentEn : GRADER_TEXT;
+  const nonB3 = en ? nonB3En : REVISION_TEXT;
+  const pointLabels = en ? samplePointsEn : SAMPLE_POINT_LABELS;
   const router = useRouter();
   const storageKey = `vms-grading-v2-${batchId}`;
   const [step, setStep] = useState(0);
@@ -239,9 +252,7 @@ export function GradingWizard({
     } catch (error) {
       return {
         error:
-          error instanceof ScoringError
-            ? error.message
-            : GRADER_TEXT.calculationError,
+          error instanceof ScoringError ? error.message : text.calculationError,
       };
     }
     // Payload diturunkan sepenuhnya dari konfigurasi dan draft pada render ini.
@@ -314,8 +325,14 @@ export function GradingWizard({
         {sub.scoringMethod === "unit_count" ? (
           <UnitCountInput
             id={`${activePoint}-${sub.subKey}`}
-            label={sub.label}
-            hint={sub.helpText}
+            label={
+              en ? (criteriaHelpEn[sub.subKey]?.[0] ?? sub.label) : sub.label
+            }
+            hint={
+              en
+                ? (criteriaHelpEn[sub.subKey]?.[1] ?? sub.helpText)
+                : sub.helpText
+            }
             checked={profile.units_per_point}
             unitLabel={profile.unit_label}
             value={p.unitsPassed[sub.subKey] ?? ""}
@@ -329,8 +346,14 @@ export function GradingWizard({
         ) : (
           <ScoreInput
             id={`${activePoint}-${sub.subKey}`}
-            label={sub.label}
-            hint={sub.helpText ?? undefined}
+            label={
+              en ? (criteriaHelpEn[sub.subKey]?.[0] ?? sub.label) : sub.label
+            }
+            hint={
+              (en
+                ? (criteriaHelpEn[sub.subKey]?.[1] ?? sub.helpText)
+                : sub.helpText) ?? undefined
+            }
             weightPct={sub.weightPct}
             value={p.scores[sub.subKey]}
             disabled={disabled}
@@ -340,7 +363,7 @@ export function GradingWizard({
         {sub.requiresMeasurementMethod ? (
           <fieldset className="mb-3 space-y-2">
             <legend className="mb-2 text-sm font-medium text-ink">
-              {GRADER_TEXT.method}
+              {text.method}
             </legend>
             {(["moisture_meter", "touch_estimate"] as const).map((method) => (
               <label
@@ -364,8 +387,8 @@ export function GradingWizard({
                 />
                 <span className="text-sm text-ink">
                   {method === "moisture_meter"
-                    ? GRADER_TEXT.moistureMeter
-                    : GRADER_TEXT.touchEstimate}
+                    ? text.moistureMeter
+                    : text.touchEstimate}
                 </span>
               </label>
             ))}
@@ -376,7 +399,11 @@ export function GradingWizard({
   }
   return (
     <Panel>
-      <Steps steps={GRADER_TEXT.steps} current={step} />
+      <Steps
+        steps={text.steps}
+        current={step}
+        label={en ? "Assessment steps" : "Langkah penilaian"}
+      />
       <PanelBody className="space-y-5">
         {step === 0 ? (
           <div className="space-y-5">
@@ -389,18 +416,18 @@ export function GradingWizard({
                   onClick={() => setActivePoint(point)}
                   className="h-auto min-h-11 flex-col px-2 py-2"
                 >
-                  {SAMPLE_POINT_LABELS[point]}
+                  {pointLabels[point]}
                   <span className="block text-xs">
                     {complete[i]
-                      ? `✓ ${GRADER_TEXT.completePoint}`
-                      : GRADER_TEXT.incompletePoint}
+                      ? `✓ ${text.completePoint}`
+                      : text.incompletePoint}
                   </span>
                 </Button>
               ))}
             </div>
             <fieldset>
               <legend className="text-base font-semibold text-ink">
-                {GRADER_TEXT.speciesPurity}
+                {text.speciesPurity}
               </legend>
               {category.criteria
                 .filter((s) => s.criterion === "purity")
@@ -408,7 +435,7 @@ export function GradingWizard({
             </fieldset>
             <fieldset className="space-y-3">
               <legend className="text-base font-semibold text-ink">
-                {GRADER_TEXT.cleanliness}
+                {text.cleanliness}
               </legend>
               <div className="space-y-2">
                 {ODOR_LEVELS.map((level) => (
@@ -428,12 +455,23 @@ export function GradingWizard({
                     />
                     <span>
                       <span className="block text-sm font-medium text-ink">
-                        {level.level} · {level.label}
+                        {level.level} ·{" "}
+                        {en
+                          ? ["Normal", "Mild odor", "Strong odor"][
+                              level.level - 1
+                            ]
+                          : level.label}
                       </span>
                       <span className="text-sm text-ink-muted">
-                        {level.level === 3
-                          ? (odorLevel3Hint ?? level.hint)
-                          : level.hint}
+                        {en
+                          ? [
+                              "No significant odor. Score proportionally.",
+                              "A mild smell with no sign of damage. Score proportionally.",
+                              "Strong mold or rot smell. This overrides cleanliness at the point. A chemical smell fails the Non-B3 gate.",
+                            ][level.level - 1]
+                          : level.level === 3
+                            ? (odorLevel3Hint ?? level.hint)
+                            : level.hint}
                       </span>
                     </span>
                   </label>
@@ -444,14 +482,14 @@ export function GradingWizard({
                   role="status"
                   className="rounded-xl bg-warning-soft p-3 text-sm text-warning"
                 >
-                  {GRADER_TEXT.overrideNotice(odorOverrideCapOf(category))}
+                  {text.overrideNotice(odorOverrideCapOf(category))}
                 </p>
               ) : null}
               {category.criteria
                 .filter((s) => s.criterion === "cleanliness")
                 .map(renderSub)}
             </fieldset>
-            <Field label={GRADER_TEXT.notes} htmlFor={`notes-${activePoint}`}>
+            <Field label={text.notes} htmlFor={`notes-${activePoint}`}>
               <Textarea
                 id={`notes-${activePoint}`}
                 value={p.notes}
@@ -463,13 +501,12 @@ export function GradingWizard({
             </Field>
             <div>
               <p className="mb-2 text-sm font-medium text-ink">
-                {GRADER_TEXT.photoTitle(SAMPLE_POINT_LABELS[activePoint])}
+                {text.photoTitle(pointLabels[activePoint])}
               </p>
               <FileUploader
                 batchId={batchId}
                 bucket={BUCKETS.photos}
-                label={GRADER_TEXT.pointPhoto}
-                accept="image/*"
+                label={text.pointPhoto}
                 onUploaded={photoActions[activePoint]}
               />
             </div>
@@ -477,11 +514,7 @@ export function GradingWizard({
         ) : null}
         {step === 1 ? (
           <div className="space-y-5">
-            <Field
-              label={GRADER_TEXT.actualWeight}
-              htmlFor="actualWeightKg"
-              required
-            >
+            <Field label={text.actualWeight} htmlFor="actualWeightKg" required>
               <Input
                 id="actualWeightKg"
                 inputMode="decimal"
@@ -492,9 +525,9 @@ export function GradingWizard({
               />
             </Field>
             <Field
-              label={GRADER_TEXT.weighingMoistureNote}
+              label={text.weighingMoistureNote}
               htmlFor="weighingMoistureNote"
-              hint={GRADER_TEXT.weighingMoistureHint}
+              hint={text.weighingMoistureHint}
             >
               <Input
                 id="weighingMoistureNote"
@@ -514,13 +547,9 @@ export function GradingWizard({
                 {POINTS.map((point) => (
                   <Field
                     key={point}
-                    label={GRADER_TEXT.bundleObserved(
-                      SAMPLE_POINT_LABELS[point],
-                    )}
+                    label={text.bundleObserved(pointLabels[point])}
                     htmlFor={`count-${point}`}
-                    hint={GRADER_TEXT.claimedCount(
-                      claimedSpecDetail.unitsPerBundle,
-                    )}
+                    hint={text.claimedCount(claimedSpecDetail.unitsPerBundle)}
                     required
                   >
                     <Input
@@ -537,9 +566,9 @@ export function GradingWizard({
                   </Field>
                 ))}
                 <Field
-                  label={GRADER_TEXT.bundleCountObserved}
+                  label={text.bundleCountObserved}
                   htmlFor="bundleCountObserved"
-                  hint={GRADER_TEXT.claimedCount(claimedSpecDetail.bundleCount)}
+                  hint={text.claimedCount(claimedSpecDetail.bundleCount)}
                 >
                   <Input
                     id="bundleCountObserved"
@@ -556,7 +585,7 @@ export function GradingWizard({
               </div>
             ) : null}
             <Field
-              label={GRADER_TEXT.unitsChecked}
+              label={text.unitsChecked}
               htmlFor="specUnitsChecked"
               required
             >
@@ -571,7 +600,7 @@ export function GradingWizard({
             </Field>
             <UnitCountInput
               id="specUnitsPassed"
-              label={GRADER_TEXT.dimensionUnits}
+              label={text.dimensionUnits}
               checked={Number(draft.specUnitsChecked) || 0}
               unitLabel={profile.unit_label}
               value={draft.specUnitsPassed}
@@ -579,7 +608,7 @@ export function GradingWizard({
                 setDraft((d) => ({ ...d, specUnitsPassed: value }))
               }
             />
-            <Field label={GRADER_TEXT.quantityNotes} htmlFor="quantityNotes">
+            <Field label={text.quantityNotes} htmlFor="quantityNotes">
               <Textarea
                 id="quantityNotes"
                 value={draft.quantityNotes}
@@ -599,10 +628,8 @@ export function GradingWizard({
         ) : null}
         {step === 2 ? (
           <div className="space-y-3">
-            <p className="text-sm text-ink-muted">
-              {GRADER_TEXT.documentationHint}
-            </p>
-            {GRADER_TEXT.documentationItems.map(({ key, label }) => (
+            <p className="text-sm text-ink-muted">{text.documentationHint}</p>
+            {text.documentationItems.map(({ key, label }) => (
               <Checkbox
                 key={key}
                 label={label}
@@ -627,39 +654,61 @@ export function GradingWizard({
                 role="alert"
                 className="rounded-xl bg-warning-soft p-3 text-sm text-warning"
               >
-                {preview.error}
+                {en ? text.previewError : preview.error}
               </p>
             ) : preview.result ? (
               <>
                 <GradeStamp
                   grade={preview.result.grade}
                   finalScore={preview.result.finalScore}
+                  locale={locale}
                 />
-                <FinalScoreBreakdown breakdown={preview.result.breakdown} />
-                <SamplePointTable breakdown={preview.result.breakdown} />
-                <ConsistencyNote breakdown={preview.result.breakdown} />
+                <FinalScoreBreakdown
+                  breakdown={preview.result.breakdown}
+                  locale={locale}
+                />
+                <SamplePointTable
+                  breakdown={preview.result.breakdown}
+                  locale={locale}
+                />
+                <ConsistencyNote
+                  breakdown={preview.result.breakdown}
+                  locale={locale}
+                />
                 <QuantityDetail
                   breakdown={preview.result.breakdown}
+                  locale={locale}
                   weighingMoistureNote={draft.weighingMoistureNote}
                 />
                 <GradeMeaningTable
-                  categoryName={category.name}
-                  meanings={gradeMeanings}
+                  categoryName={categoryName(
+                    locale,
+                    category.code,
+                    category.name,
+                  )}
+                  locale={locale}
+                  meanings={
+                    en && category.code === "solid_wood"
+                      ? woodGradesEn
+                      : gradeMeanings
+                  }
                   grade={preview.result.grade}
                 />
                 <Badge tone="neutral">
-                  {GRADER_TEXT.formulaVersion} {preview.result.scoringVersion}
+                  {text.formulaVersion} {preview.result.scoringVersion}
                 </Badge>
               </>
             ) : null}
             <Checkbox
-              label={REVISION_TEXT.nonB3ReconfirmLabel}
+              label={nonB3.nonB3ReconfirmLabel}
               checked={nonB3Reconfirmed}
               onChange={(e) => setNonB3Reconfirmed(e.target.checked)}
             />
             {submitError ? (
               <p role="alert" className="text-sm text-danger">
-                {submitError}
+                {en
+                  ? "The assessment could not be submitted. Check the entered values and the Non-B3 confirmation."
+                  : submitError}
               </p>
             ) : null}
           </div>
@@ -672,7 +721,7 @@ export function GradingWizard({
               disabled={pending || findingPending}
               onClick={() => setStep(step - 1)}
             >
-              {ACTIONS.back}
+              {en ? "Back" : ACTIONS.back}
             </Button>
           ) : null}
           {step < 3 ? (
@@ -681,7 +730,7 @@ export function GradingWizard({
               disabled={pending || findingPending}
               onClick={() => setStep(step + 1)}
             >
-              {ACTIONS.next}
+              {en ? "Next" : ACTIONS.next}
             </Button>
           ) : (
             <Button
@@ -694,7 +743,7 @@ export function GradingWizard({
               }
               onClick={submit}
             >
-              {pending ? GRADER_TEXT.submitting : GRADER_TEXT.submit}
+              {pending ? text.submitting : text.submit}
             </Button>
           )}
         </div>
@@ -705,23 +754,23 @@ export function GradingWizard({
             disabled={pending || findingPending}
             onClick={() => setFindingOpen(true)}
           >
-            {REVISION_TEXT.nonB3FindingButton}
+            {nonB3.nonB3FindingButton}
           </Button>
         </div>
         {findingOpen ? (
           <form
             action={findingAction}
             className="space-y-3 rounded-xl border border-danger bg-danger-soft p-4"
-            aria-label={REVISION_TEXT.nonB3FindingTitle}
+            aria-label={nonB3.nonB3FindingTitle}
           >
             <h3 className="font-semibold text-danger">
-              {REVISION_TEXT.nonB3FindingTitle}
+              {nonB3.nonB3FindingTitle}
             </h3>
             <p className="text-sm leading-relaxed text-ink">
-              {REVISION_TEXT.nonB3FindingBody}
+              {nonB3.nonB3FindingBody}
             </p>
             <Field
-              label={GRADER_TEXT.gateNotes}
+              label={text.gateNotes}
               htmlFor="nonB3FindingNotes"
               error={findingState.fieldErrors?.notes}
               required
@@ -731,13 +780,15 @@ export function GradingWizard({
                 name="notes"
                 value={findingNotes}
                 onChange={(e) => setFindingNotes(e.target.value)}
-                placeholder={REVISION_TEXT.nonB3FindingPlaceholder}
+                placeholder={nonB3.nonB3FindingPlaceholder}
                 maxLength={1000}
               />
             </Field>
             {findingState.error ? (
               <p role="alert" className="text-sm text-danger">
-                {findingState.error}
+                {en
+                  ? "Could not reject this batch. Check its status and the notes."
+                  : findingState.error}
               </p>
             ) : null}
             <div className="flex flex-wrap gap-2">
@@ -746,7 +797,7 @@ export function GradingWizard({
                 variant="danger"
                 disabled={findingPending || findingNotes.trim().length < 10}
               >
-                {REVISION_TEXT.nonB3FindingConfirm}
+                {nonB3.nonB3FindingConfirm}
               </Button>
               <Button
                 type="button"
@@ -754,7 +805,7 @@ export function GradingWizard({
                 disabled={findingPending}
                 onClick={() => setFindingOpen(false)}
               >
-                {REVISION_TEXT.nonB3FindingCancel}
+                {nonB3.nonB3FindingCancel}
               </Button>
             </div>
           </form>

@@ -3,6 +3,8 @@ import { signOutAction } from "@/app/(auth)/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Wordmark } from "@/components/wordmark";
 import { ROLE_LABELS } from "@/lib/text";
+import { LocaleToggle } from "./locale-toggle";
+import { getLocale } from "@/lib/locale-server";
 import type { UserRole } from "@/lib/types/db";
 
 export interface NavItem {
@@ -14,7 +16,7 @@ export interface NavItem {
  * Kerangka halaman untuk area yang butuh login.
  * Navigasi ditentukan peran, bukan disembunyikan-tampilkan di client.
  */
-export function AppShell({
+export async function AppShell({
   role,
   fullName,
   nav,
@@ -25,6 +27,15 @@ export function AppShell({
   nav: NavItem[];
   children: React.ReactNode;
 }) {
+  const en = (await getLocale()) === "en";
+  const navEn: Record<string, string> = {
+    Pabrik: "Factories",
+    Sertifikat: "Certificates",
+    "Kategori & bobot": "Categories & weights",
+    "Profil pabrik": "Factory profile",
+    "Ajukan batch": "Submit a batch",
+    Antrian: "Assessment queue",
+  };
   return (
     <div className="min-h-dvh bg-paper">
       <header className="border-b border-line bg-surface/90">
@@ -34,17 +45,19 @@ export function AppShell({
               <Wordmark showLongName={false} />
             </Link>
             <span className="truncate text-sm text-ink-muted">
-              {ROLE_LABELS[role]} · {fullName}
+              {en && role === "factory" ? "Factory" : ROLE_LABELS[role]} ·{" "}
+              {fullName}
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <LocaleToggle />
             <ThemeToggle />
             <form action={signOutAction}>
               <button
                 type="submit"
                 className="rounded-xl border border-line px-3 py-2 text-sm text-ink-muted hover:bg-surface-sunken hover:text-ink"
               >
-                Keluar
+                {en ? "Sign out" : "Keluar"}
               </button>
             </form>
           </div>
@@ -52,7 +65,7 @@ export function AppShell({
 
         {nav.length > 1 ? (
           <nav
-            aria-label="Navigasi utama"
+            aria-label={en ? "Main navigation" : "Navigasi utama"}
             className="mx-auto w-full max-w-6xl px-4 sm:px-6"
           >
             <ul className="-mb-px flex gap-1 overflow-x-auto">
@@ -62,7 +75,7 @@ export function AppShell({
                     href={item.href}
                     className="inline-block whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-ink-muted hover:border-line-strong hover:text-ink"
                   >
-                    {item.label}
+                    {en ? (navEn[item.label] ?? item.label) : item.label}
                   </Link>
                 </li>
               ))}
@@ -74,7 +87,6 @@ export function AppShell({
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         {children}
       </main>
-
     </div>
   );
 }

@@ -3,6 +3,9 @@ import Image from "next/image";
 import { ArrowRight, ArrowUpRight, ScanLine, ShieldCheck } from "lucide-react";
 import { GradeExplorer } from "@/components/grade-explorer";
 import { LandingMotion } from "@/components/landing-motion";
+import { LocaleToggle } from "@/components/locale-toggle";
+import { getLocale } from "@/lib/locale-server";
+import { criteriaEn, stepsEn } from "@/lib/public-english";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VerifyCodeForm } from "@/components/verify-code-form";
 import { Wordmark } from "@/components/wordmark";
@@ -36,6 +39,8 @@ const STEPS = [
 
 export const revalidate = 300;
 export default async function LandingPage() {
+  const locale = await getLocale();
+  const en = locale === "en";
   const categories = await loadPublicCategories();
   const wood = categories.find((c) => c.code === "solid_wood");
   return (
@@ -43,42 +48,47 @@ export default async function LandingPage() {
       <LandingMotion />
       <header className="landing-header">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12">
-          <Link href="/" aria-label="Beranda VMS">
+          <Link href="/" aria-label={en ? "VMS homepage" : "Beranda VMS"}>
             <Wordmark />
           </Link>
           <nav
-            aria-label="Navigasi beranda"
+            aria-label={en ? "Home navigation" : "Navigasi beranda"}
             className="hidden items-center gap-6 text-sm text-ink-muted xl:flex"
           >
             <a href="#cara-kerja" className="hover:text-brand">
-              Cara kerja
+              {en ? "How it works" : "Cara kerja"}
             </a>
             <a href="#material" className="hover:text-brand">
-              {PUBLIC_TEXT.materialNav}
+              {en ? "Materials" : PUBLIC_TEXT.materialNav}
             </a>
             <Link href="/tentang" className="hover:text-brand">
-              {PUBLIC_TEXT.aboutNav}
+              {en ? "About & FAQ" : PUBLIC_TEXT.aboutNav}
+            </Link>
+            <Link href="/katalog" className="hover:text-brand">
+              {en ? "Catalog" : "Katalog"}
             </Link>
             <a href="#grade" className="hover:text-brand">
               Grade
             </a>
             <a href="#kriteria" className="hover:text-brand">
-              Kriteria
+              {en ? "Criteria" : "Kriteria"}
             </a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-4">
+            <LocaleToggle />
             <ThemeToggle />
             <Link
               href="/sign-in"
               className="text-sm font-medium text-ink hover:text-brand"
             >
-              Masuk
+              {en ? "Sign in" : "Masuk"}
             </Link>
             <Link
               href="/sign-up"
               className="hidden rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-brand-ink transition hover:bg-brand-hover sm:inline-flex"
             >
-              Daftar <ArrowUpRight className="ml-1.5 size-4" aria-hidden />
+              {en ? "Sign up" : "Daftar"}{" "}
+              <ArrowUpRight className="ml-1.5 size-4" aria-hidden />
             </Link>
           </div>
         </div>
@@ -98,50 +108,69 @@ export default async function LandingPage() {
                 <span className="font-mono text-ink-muted">/ 001</span>
               </div>
               <h1 className="hero-title text-[clamp(2.85rem,5.2vw,5.4rem)] leading-[1.03] text-ink">
-                Kualitas material,
+                {en ? "Material quality," : "Kualitas material,"}
                 <br />
                 <span className="hero-heading-accent">
-                  tanpa tebak-tebakan.
+                  {en ? "without the guesswork." : "tanpa tebak-tebakan."}
                 </span>
               </h1>
               <p className="hero-description mt-7 max-w-[34rem] text-base leading-8 text-ink-muted sm:text-lg">
-                {PUBLIC_TEXT.heroDescription}
+                {en
+                  ? "See the evidence behind a batch of production offcuts. VMS examines three sample points and reports a grade anyone can verify. The pilot covers solid wood."
+                  : PUBLIC_TEXT.heroDescription}
               </p>
               <div className="hero-actions mt-9 flex flex-wrap items-center gap-3">
                 <a
                   href="#verifikasi"
                   className="hero-primary inline-flex min-h-12 items-center gap-3 rounded-full bg-brand px-6 font-semibold text-white shadow-[0_10px_24px_rgba(42,94,235,.24)] hover:bg-brand-hover"
                 >
-                  Verifikasi sertifikat{" "}
+                  {en ? "Verify a certificate" : "Verifikasi sertifikat"}{" "}
                   <ArrowUpRight className="size-5" aria-hidden />
                 </a>
                 <a
                   href="#cara-kerja"
-                  className="hero-secondary inline-flex min-h-12 items-center gap-2 rounded-full border border-blue-200 bg-white/60 px-6 font-medium text-ink hover:bg-white dark:border-line dark:bg-surface/60"
+                  className="hero-secondary inline-flex min-h-12 items-center gap-2 rounded-full border border-blue-200 bg-white/60 px-6 font-medium text-ink hover:bg-white dark:border-line dark:bg-surface/60 dark:hover:bg-surface-sunken"
                 >
-                  Lihat cara kerja <ArrowRight className="size-4" aria-hidden />
+                  {en ? "See how it works" : "Lihat cara kerja"}{" "}
+                  <ArrowRight className="size-4" aria-hidden />
                 </a>
               </div>
+              <Link
+                href="/katalog"
+                className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-brand hover:underline"
+              >
+                {en
+                  ? "Browse verified materials"
+                  : "Jelajahi material terverifikasi"}{" "}
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
               <p className="hero-trust mt-8 flex items-center gap-2 text-sm text-ink-muted">
                 <ShieldCheck className="size-4 text-brand" aria-hidden />{" "}
-                Independen · Terukur · Bisa dicek publik
+                {en
+                  ? "Independent · Measurable · Publicly verifiable"
+                  : "Independen · Terukur · Bisa dicek publik"}
               </p>
             </div>
             <div className="hero-art relative mx-auto w-full max-w-[660px] lg:-mr-10">
               <Image
                 src="/vms-hero.svg"
-                alt="Ilustrasi lapisan material tiga dimensi, contoh grade, dan maskot cap digital VMS"
+                alt={
+                  en
+                    ? "Material layers, a sample grade and the VMS mascot"
+                    : "Ilustrasi lapisan material, contoh grade, dan maskot VMS"
+                }
                 width={680}
                 height={610}
                 priority
                 className="h-auto w-full"
               />
               <div className="hero-float hero-float-top" aria-hidden>
-                <span className="hero-float-dot" /> SAMPLING / 03 TITIK
+                <span className="hero-float-dot" />{" "}
+                {en ? "SAMPLING / 03 POINTS" : "SAMPLING / 03 TITIK"}
               </div>
               <div className="hero-float hero-float-bottom" aria-hidden>
-                <span className="font-mono text-brand">01—05</span> KRITERIA
-                TERUKUR
+                <span className="font-mono text-brand">01—05</span>{" "}
+                {en ? "MEASURABLE CRITERIA" : "KRITERIA TERUKUR"}
               </div>
             </div>
           </div>
@@ -168,14 +197,16 @@ export default async function LandingPage() {
             />
             <div className="mb-5 lg:mb-0 lg:w-[42%]">
               <p className="verify-eyebrow mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.17em]">
-                <ScanLine className="size-4" aria-hidden /> Cek keaslian
+                <ScanLine className="size-4" aria-hidden />{" "}
+                {en ? "Check authenticity" : "Cek keaslian"}
               </p>
               <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Punya nomor sertifikat?
+                {en ? "Have a certificate number?" : "Punya nomor sertifikat?"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-blue-100">
-                Masukkan kode dari penjual. Hasil verifikasi terbuka untuk
-                semua, tanpa akun.
+                {en
+                  ? "Enter the seller’s code. Anyone can check it without an account."
+                  : "Masukkan kode dari penjual. Hasil verifikasi terbuka untuk semua, tanpa akun."}
               </p>
             </div>
             <div className="lg:flex-1">
@@ -187,25 +218,31 @@ export default async function LandingPage() {
         <div
           className="signal-strip"
           role="img"
-          aria-label="Tiga titik sampling, lima kriteria, satu standar yang bisa diverifikasi"
+          aria-label={
+            en
+              ? "Three sampling points, five criteria, one verifiable standard"
+              : "Tiga titik sampling, lima kriteria, satu standar yang bisa diverifikasi"
+          }
         >
           <div className="signal-track" aria-hidden>
             {[0, 1].map((copy) => (
               <div className="signal-group" key={copy}>
                 <span>
-                  03 <em>TITIK SAMPLING</em>
+                  03 <em>{en ? "SAMPLING POINTS" : "TITIK SAMPLING"}</em>
                 </span>
                 <i />
                 <span>
-                  05 <em>KRITERIA TERUKUR</em>
+                  05 <em>{en ? "MEASURABLE CRITERIA" : "KRITERIA TERUKUR"}</em>
                 </span>
                 <i />
                 <span>
-                  01 <em>STANDAR TRANSPARAN</em>
+                  01{" "}
+                  <em>{en ? "TRANSPARENT STANDARD" : "STANDAR TRANSPARAN"}</em>
                 </span>
                 <i />
                 <span>
-                  VMS <em>VERIFIKASI PUBLIK</em>
+                  VMS{" "}
+                  <em>{en ? "PUBLIC VERIFICATION" : "VERIFIKASI PUBLIK"}</em>
                 </span>
                 <i />
               </div>
@@ -222,18 +259,21 @@ export default async function LandingPage() {
             className="mb-10 flex flex-wrap items-end justify-between gap-5"
           >
             <div>
-              <p className="section-eyebrow">PROSES VMS / 01</p>
+              <p className="section-eyebrow">
+                {en ? "THE VMS PROCESS / 01" : "PROSES VMS / 01"}
+              </p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                Dari material ke kepastian.
+                {en ? "From material to proof." : "Dari material ke kepastian."}
               </h2>
             </div>
             <p className="max-w-sm text-sm leading-7 text-ink-muted">
-              Proses singkat, penilaian transparan. Setiap langkah dirancang
-              agar kualitas tidak hanya jadi klaim.
+              {en
+                ? "A short process with visible results. Every step turns a quality claim into something you can check."
+                : "Proses singkat, penilaian transparan. Setiap langkah dirancang agar kualitas tidak hanya jadi klaim."}
             </p>
           </div>
           <ol className="grid gap-4 md:grid-cols-3">
-            {STEPS.map((step) => (
+            {STEPS.map((step, index) => (
               <li
                 key={step.number}
                 data-reveal
@@ -242,7 +282,7 @@ export default async function LandingPage() {
                 <div className="story-art">
                   <Image
                     src={step.image}
-                    alt={step.imageAlt}
+                    alt={en ? "" : step.imageAlt}
                     width={480}
                     height={330}
                     className="story-image"
@@ -251,13 +291,13 @@ export default async function LandingPage() {
                 </div>
                 <div className="story-copy">
                   <span className="story-small-label">
-                    LANGKAH {step.number}
+                    {en ? "STEP" : "LANGKAH"} {step.number}
                   </span>
                   <h3 className="mt-2 text-[1.45rem] font-bold text-ink">
-                    {step.title}
+                    {en ? stepsEn[index].title : step.title}
                   </h3>
                   <p className="mt-3 text-sm leading-7 text-ink-muted">
-                    {step.body}
+                    {en ? stepsEn[index].body : step.body}
                   </p>
                 </div>
               </li>
@@ -265,7 +305,7 @@ export default async function LandingPage() {
           </ol>
         </section>
 
-        <MaterialCategories categories={categories} />
+        <MaterialCategories categories={categories} locale={locale} />
         <section
           id="grade"
           className="grade-section scroll-mt-20 py-20 sm:py-24"
@@ -276,24 +316,30 @@ export default async function LandingPage() {
               className="mb-9 flex flex-wrap items-end justify-between gap-8 lg:mb-12"
             >
               <div>
-                <p className="section-eyebrow">{PUBLIC_TEXT.gradeEyebrow}</p>
+                <p className="section-eyebrow">
+                  {en ? "RESULTS YOU CAN READ / 03" : PUBLIC_TEXT.gradeEyebrow}
+                </p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-                  Satu grade.
+                  {en ? "One grade." : "Satu grade."}
                   <br />
-                  Cerita kualitas lengkap.
+                  {en
+                    ? "The full quality picture."
+                    : "Cerita kualitas lengkap."}
                 </h2>
               </div>
               <div className="max-w-md">
                 <p className="text-base leading-8 text-ink-muted">
-                  Lima kriteria berbobot menghasilkan skor 0–100. Grade membantu
-                  pembeli membandingkan batch, bukan menggantikan pemeriksaan
-                  kebutuhan produksi mereka.
+                  {en
+                    ? "Five weighted criteria produce a score from 0 to 100. Use the grade to compare batches, then check them against your own production needs."
+                    : "Lima kriteria berbobot menghasilkan skor 0–100. Grade membantu pembeli membandingkan batch, bukan menggantikan pemeriksaan kebutuhan produksi mereka."}
                 </p>
                 <a
                   href="#kriteria"
                   className="mt-7 inline-flex items-center gap-2 font-semibold text-brand hover:underline"
                 >
-                  Lihat kriteria penilaian{" "}
+                  {en
+                    ? "See the assessment criteria"
+                    : "Lihat kriteria penilaian"}{" "}
                   <ArrowUpRight className="size-4" aria-hidden />
                 </a>
               </div>
@@ -309,19 +355,25 @@ export default async function LandingPage() {
           className="mx-auto grid w-full max-w-7xl scroll-mt-20 gap-10 px-5 py-20 sm:px-8 lg:grid-cols-[.8fr_1.2fr] lg:px-12 lg:py-24"
         >
           <div data-reveal>
-            <p className="section-eyebrow">{PUBLIC_TEXT.criteriaEyebrow}</p>
+            <p className="section-eyebrow">
+              {en ? "BEHIND THE NUMBERS / 04" : PUBLIC_TEXT.criteriaEyebrow}
+            </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-              Bukan sekadar label.
+              {en ? "More than a label." : "Bukan sekadar label."}
             </h2>
             <p className="mt-5 max-w-md text-base leading-8 text-ink-muted">
-              Kemurnian, kebersihan, konsistensi, akurasi, dan dokumentasi
-              dihitung dengan bobot jelas. Gate wajib diperiksa sebelum skoring
-              dimulai.
+              {en
+                ? "Purity, cleanliness, consistency, accuracy, and documentation have clear weights. A batch must pass the required gate before scoring starts."
+                : "Kemurnian, kebersihan, konsistensi, akurasi, dan dokumentasi dihitung dengan bobot jelas. Gate wajib diperiksa sebelum skoring dimulai."}
             </p>
             <div className="criteria-art" data-reveal>
               <Image
                 src="/illustrations/buddy-lab.svg"
-                alt="Maskot VMS mengecek sampel di laboratorium ilustratif"
+                alt={
+                  en
+                    ? "VMS mascot checking a sample"
+                    : "Maskot VMS mengecek sampel"
+                }
                 width={440}
                 height={300}
               />
@@ -331,7 +383,7 @@ export default async function LandingPage() {
             data-reveal
             className="criteria-list overflow-hidden rounded-[26px] border border-line bg-surface px-5 sm:px-8"
           >
-            {CRITERIA_EXPLAINER.map((criterion) => (
+            {(en ? criteriaEn : CRITERIA_EXPLAINER).map((criterion) => (
               <li
                 key={criterion.label}
                 className="criteria-row flex gap-5 border-b border-line py-5 last:border-0"
@@ -360,20 +412,23 @@ export default async function LandingPage() {
           >
             <div className="relative z-10 lg:max-w-[65%]">
               <p className="text-xs font-semibold uppercase tracking-[.18em] text-blue-200">
-                Untuk pabrik
+                {en ? "For factories" : "Untuk pabrik"}
               </p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Beri materialmu bukti kualitas.
+                {en
+                  ? "Show proof of your material’s quality."
+                  : "Beri materialmu bukti kualitas."}
               </h2>
               <p className="mt-4 max-w-xl leading-7 text-blue-100">
-                Ajukan batch, jalani penilaian, lalu bagikan sertifikatnya pada
-                calon pembeli.
+                {en
+                  ? "Submit a batch, have it assessed, and share the certificate with buyers."
+                  : "Ajukan batch, jalani penilaian, lalu bagikan sertifikatnya pada calon pembeli."}
               </p>
               <Link
                 href="/sign-up"
                 className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-6 font-semibold text-blue-700 transition hover:bg-blue-50"
               >
-                Daftar sebagai pabrik{" "}
+                {en ? "Register a factory" : "Daftar sebagai pabrik"}{" "}
                 <ArrowUpRight className="size-5" aria-hidden />
               </Link>
             </div>
@@ -396,23 +451,25 @@ export default async function LandingPage() {
                 href="#material"
                 className="inline-flex min-h-11 items-center underline"
               >
-                {PUBLIC_TEXT.materialNav}
+                {en ? "Materials" : PUBLIC_TEXT.materialNav}
               </a>
               <Link
                 href="/tentang"
                 className="inline-flex min-h-11 items-center underline"
               >
-                {PUBLIC_TEXT.aboutNav}
+                {en ? "About & FAQ" : PUBLIC_TEXT.aboutNav}
               </Link>
               <Link
                 href="/proses-keberatan"
                 className="inline-flex min-h-11 items-center underline"
               >
-                {PUBLIC_TEXT.objectionNav}
+                {en ? "Appeals process" : PUBLIC_TEXT.objectionNav}
               </Link>
             </nav>
             <p className="text-sm font-semibold text-ink">
-              Material punya cerita. Kami bantu membacanya.
+              {en
+                ? "Every material has a story. We help you read it."
+                : "Material punya cerita. Kami bantu membacanya."}
             </p>
           </div>
         </div>

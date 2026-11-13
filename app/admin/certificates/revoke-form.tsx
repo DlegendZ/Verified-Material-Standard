@@ -1,4 +1,5 @@
 "use client";
+import { useLocale } from "@/components/locale-provider";
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ const initialState: ActionState = {};
  * menampilkannya — pembeli berhak tahu kenapa sertifikat tidak berlaku.
  */
 export function RevokeForm({ certificateId }: { certificateId: string }) {
+  const en = useLocale() === "en";
   const [state, formAction, pending] = useActionState(
     revokeCertificateAction,
     initialState,
@@ -21,7 +23,7 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
   if (!open) {
     return (
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        Cabut sertifikat
+        {en ? "Revoke certificate" : "Cabut sertifikat"}
       </Button>
     );
   }
@@ -35,14 +37,20 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
           role="alert"
           className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
         >
-          {state.error}
+          {en
+            ? "Could not revoke the certificate. Enter a reason of at least 10 characters."
+            : state.error}
         </p>
       ) : null}
 
       <Field
-        label="Alasan pencabutan"
+        label={en ? "Reason for revocation" : "Alasan pencabutan"}
         htmlFor={`reason-${certificateId}`}
-        hint="Contoh: batch terkena hujan sebelum terjual sehingga kondisinya berubah signifikan."
+        hint={
+          en
+            ? "Example: Rain before sale significantly changed the batch’s condition."
+            : "Contoh: batch terkena hujan sebelum terjual sehingga kondisinya berubah signifikan."
+        }
         required
       >
         <Textarea
@@ -55,7 +63,13 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
 
       <div className="flex gap-2">
         <Button type="submit" variant="danger" size="sm" disabled={pending}>
-          {pending ? "Mencabut…" : "Cabut sertifikat"}
+          {pending
+            ? en
+              ? "Revoking…"
+              : "Mencabut…"
+            : en
+              ? "Revoke certificate"
+              : "Cabut sertifikat"}
         </Button>
         <Button
           type="button"
@@ -63,7 +77,7 @@ export function RevokeForm({ certificateId }: { certificateId: string }) {
           size="sm"
           onClick={() => setOpen(false)}
         >
-          Batal
+          {en ? "Cancel" : "Batal"}
         </Button>
       </div>
     </form>

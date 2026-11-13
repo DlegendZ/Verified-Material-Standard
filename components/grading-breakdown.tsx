@@ -3,14 +3,28 @@ import { ScoreBar } from "@/components/ui/score-bar";
 import { formatScore } from "@/lib/format";
 import { normalizeBreakdown } from "@/lib/breakdown";
 import { SAMPLE_POINT_LABELS, GRADER_TEXT } from "@/lib/text";
+import type { Locale } from "@/lib/locale";
+import { criteriaEn } from "@/lib/public-english";
+import { assessmentEn, criteriaHelpEn } from "@/lib/assessment-english";
+
+const sampleEn = { top: "Top", middle: "Middle", bottom: "Bottom" };
+const criterionKeys = [
+  "purity",
+  "cleanliness",
+  "consistency",
+  "quantity",
+  "documentation",
+];
 
 /** Rincian lima kriteria beserta bobot dan kontribusinya ke skor akhir. */
 export function FinalScoreBreakdown({
   breakdown: raw,
   scoringVersion = "2.0.0",
+  locale = "id",
 }: {
   breakdown: unknown;
   scoringVersion?: string;
+  locale?: Locale;
 }) {
   const breakdown = normalizeBreakdown(raw, scoringVersion);
   return (
@@ -18,7 +32,12 @@ export function FinalScoreBreakdown({
       {breakdown.final.map((row) => (
         <ScoreBar
           key={row.key}
-          label={row.label}
+          label={
+            locale === "en"
+              ? criteriaEn[criterionKeys.indexOf(row.key)].label
+              : row.label
+          }
+          locale={locale}
           score={row.score}
           weightPct={row.weightPct}
           contribution={row.contribution}
@@ -35,27 +54,33 @@ export function FinalScoreBreakdown({
 export function SamplePointTable({
   breakdown: raw,
   scoringVersion = "2.0.0",
+  locale = "id",
 }: {
   breakdown: unknown;
   scoringVersion?: string;
+  locale?: Locale;
 }) {
   const breakdown = normalizeBreakdown(raw, scoringVersion);
+  const en = locale === "en";
+  const override = breakdown.samplePoints.find(
+    (point) => point.cleanlinessOverridden,
+  );
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-line-strong text-left">
             <th scope="col" className="py-2 pr-4 font-medium text-ink-muted">
-              Titik
+              {en ? "Point" : "Titik"}
             </th>
             <th scope="col" className="py-2 pr-4 font-medium text-ink-muted">
-              Kemurnian
+              {en ? "Purity" : "Kemurnian"}
             </th>
             <th scope="col" className="py-2 pr-4 font-medium text-ink-muted">
-              Kebersihan
+              {en ? "Cleanliness" : "Kebersihan"}
             </th>
             <th scope="col" className="py-2 font-medium text-ink-muted">
-              Bau
+              {en ? "Odor" : "Bau"}
             </th>
           </tr>
         </thead>
@@ -69,18 +94,18 @@ export function SamplePointTable({
                 scope="row"
                 className="py-2.5 pr-4 text-left font-medium text-ink"
               >
-                {SAMPLE_POINT_LABELS[point.point]}
+                {(en ? sampleEn : SAMPLE_POINT_LABELS)[point.point]}
               </th>
               <td className="py-2.5 pr-4 font-mono tabular text-ink">
-                {formatScore(point.purity)}
+                {formatScore(point.purity, locale)}
               </td>
               <td className="py-2.5 pr-4">
                 <span className="font-mono tabular text-ink">
-                  {formatScore(point.cleanliness)}
+                  {formatScore(point.cleanliness, locale)}
                 </span>
                 {point.cleanlinessOverridden ? (
                   <Badge tone="danger" className="ml-2">
-                    override bau
+                    {en ? "odor override" : "override bau"}
                   </Badge>
                 ) : null}
               </td>
@@ -92,15 +117,11 @@ export function SamplePointTable({
         </tbody>
       </table>
 
-      {breakdown.samplePoints.some((point) => point.cleanlinessOverridden) ? (
+      {override ? (
         <p className="mt-3 text-sm text-ink-muted">
-          Bau level 3 terdeteksi di salah satu titik. Skor kebersihan titik itu
-          ditetapkan ke{" "}
-          {formatScore(
-            breakdown.samplePoints.find((point) => point.cleanlinessOverridden)
-              ?.cleanlinessOverrideCap ?? 40,
-          )}
-          , dan sub-kriteria kebersihan lain di titik itu tidak ikut dihitung.
+          {en
+            ? `Level 3 odor was detected. That point’s cleanliness score was set to ${formatScore(override.cleanlinessOverrideCap ?? 40, locale)}, and its other cleanliness scores did not count.`
+            : `Bau level 3 terdeteksi di salah satu titik. Skor kebersihan titik itu ditetapkan ke ${formatScore(override.cleanlinessOverrideCap ?? 40)}, dan sub-kriteria kebersihan lain di titik itu tidak ikut dihitung.`}
         </p>
       ) : null}
     </div>
@@ -111,12 +132,24 @@ export function SamplePointTable({
 export function ConsistencyNote({
   breakdown: raw,
   scoringVersion = "2.0.0",
+  locale = "id",
 }: {
   breakdown: unknown;
   scoringVersion?: string;
+  locale?: Locale;
 }) {
   const breakdown = normalizeBreakdown(raw, scoringVersion);
   const { consistency } = breakdown;
+  if (locale === "en")
+    return (
+      <p className="text-sm leading-relaxed text-ink-muted">
+        Score spread across samples:{" "}
+        {formatScore(consistency.puritySpread, locale)} points for purity and{" "}
+        {formatScore(consistency.cleanlinessSpread, locale)} for cleanliness.
+        The greater level of variation ({consistency.appliedLevel}) sets the
+        consistency score to {formatScore(consistency.score, locale)}.
+      </p>
+    );
   const levelText = {
     small: "kecil",
     medium: "sedang",
@@ -138,17 +171,23 @@ export function ConsistencyNote({
 export function SubCriteriaDetail({
   breakdown: raw,
   scoringVersion = "2.0.0",
+  locale = "id",
 }: {
   breakdown: unknown;
   scoringVersion?: string;
+  locale?: Locale;
 }) {
   const breakdown = normalizeBreakdown(raw, scoringVersion);
+  const en = locale === "en";
+  const text = en ? assessmentEn : GRADER_TEXT;
   return (
     <div className="space-y-5">
       {breakdown.samplePoints.map((point) => (
         <div key={point.point}>
           <p className="mb-2 text-sm font-medium text-ink">
-            Titik {SAMPLE_POINT_LABELS[point.point]}
+            {en
+              ? sampleEn[point.point]
+              : `Titik ${SAMPLE_POINT_LABELS[point.point]}`}
           </p>
           <ul className="divide-y divide-line border-y border-line">
             {point.contributions.map((contribution) => (
@@ -163,29 +202,32 @@ export function SubCriteriaDetail({
                       : "text-ink"
                   }
                 >
-                  {contribution.label}
+                  {en
+                    ? (criteriaHelpEn[contribution.subKey]?.[0] ??
+                      contribution.label)
+                    : contribution.label}
                 </span>
                 <span className="font-mono tabular text-ink-muted">
                   {contribution.rawScore === null ? (
-                    GRADER_TEXT.overrideEmpty
+                    text.overrideEmpty
                   ) : (
                     <>
                       {contribution.method === "unit_count" &&
                       contribution.unitsChecked !== null &&
                       contribution.unitsPassed !== null
-                        ? GRADER_TEXT.unitSummary(
+                        ? text.unitSummary(
                             contribution.unitsPassed,
                             contribution.unitsChecked,
-                            formatScore(contribution.passPct),
-                            formatScore(contribution.rawScore),
+                            formatScore(contribution.passPct, locale),
+                            formatScore(contribution.rawScore, locale),
                           )
-                        : formatScore(contribution.rawScore)}
+                        : formatScore(contribution.rawScore, locale)}
                       {contribution.measurementMethod
-                        ? ` (${contribution.measurementMethod === "moisture_meter" ? GRADER_TEXT.moistureMeter.toLowerCase() : GRADER_TEXT.touchEstimate.toLowerCase()})`
+                        ? ` (${contribution.measurementMethod === "moisture_meter" ? text.moistureMeter.toLowerCase() : text.touchEstimate.toLowerCase()})`
                         : ""}
                       {" × "}
                       {contribution.weightPct}% ={" "}
-                      {formatScore(contribution.contribution)}
+                      {formatScore(contribution.contribution, locale)}
                     </>
                   )}
                 </span>
@@ -202,21 +244,22 @@ export function QuantityDetail({
   breakdown: raw,
   scoringVersion = "2.0.0",
   weighingMoistureNote,
+  locale = "id",
 }: {
   breakdown: unknown;
   scoringVersion?: string;
   weighingMoistureNote?: string | null;
+  locale?: Locale;
 }) {
   const { quantity } = normalizeBreakdown(raw, scoringVersion);
+  const text = locale === "en" ? assessmentEn : GRADER_TEXT;
   return (
     <div className="space-y-3 rounded-xl border border-line bg-surface-sunken p-3">
-      <h3 className="text-sm font-semibold text-ink">
-        {GRADER_TEXT.quantityDetail}
-      </h3>
+      <h3 className="text-sm font-semibold text-ink">{text.quantityDetail}</h3>
       <dl className="space-y-2 text-sm text-ink">
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>{GRADER_TEXT.weightDeviation}</dt>
-          <dd>{formatScore(quantity.weightDeviationPct)}%</dd>
+          <dt>{text.weightDeviation}</dt>
+          <dd>{formatScore(quantity.weightDeviationPct, locale)}%</dd>
         </div>
         {quantity.countChecks.map((c) => (
           <div
@@ -225,40 +268,37 @@ export function QuantityDetail({
           >
             <dt className="font-medium">{c.label}</dt>
             <dd className="text-ink-muted">
-              {GRADER_TEXT.countClaim} {c.claimed} · {GRADER_TEXT.countObserved}{" "}
-              {c.observed} · {GRADER_TEXT.deviation}{" "}
-              {formatScore(c.deviationPct)}%{" "}
-              {quantity.deviationSource === c.key
-                ? `· ${GRADER_TEXT.applied}`
-                : ""}
+              {text.countClaim} {c.claimed} · {text.countObserved} {c.observed}{" "}
+              · {text.deviation} {formatScore(c.deviationPct, locale)}%{" "}
+              {quantity.deviationSource === c.key ? `· ${text.applied}` : ""}
             </dd>
           </div>
         ))}
         <div className="flex flex-wrap justify-between gap-2 font-semibold">
-          <dt>{GRADER_TEXT.maxDeviation}</dt>
+          <dt>{text.maxDeviation}</dt>
           <dd>
-            {formatScore(quantity.deviationPct)}% →{" "}
-            {formatScore(quantity.weightScore)}
+            {formatScore(quantity.deviationPct, locale)}% →{" "}
+            {formatScore(quantity.weightScore, locale)}
           </dd>
         </div>
         {quantity.specUnitsChecked !== null ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>{GRADER_TEXT.dimensionUnits}</dt>
+            <dt>{text.dimensionUnits}</dt>
             <dd>
               {quantity.specUnitsPassed}/{quantity.specUnitsChecked} (
-              {formatScore(quantity.specMatchPct)}%) →{" "}
-              {formatScore(quantity.specScore)}
+              {formatScore(quantity.specMatchPct, locale)}%) →{" "}
+              {formatScore(quantity.specScore, locale)}
             </dd>
           </div>
         ) : null}
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>{GRADER_TEXT.quantityScore}</dt>
-          <dd>{formatScore(quantity.score)}</dd>
+          <dt>{text.quantityScore}</dt>
+          <dd>{formatScore(quantity.score, locale)}</dd>
         </div>
       </dl>
       {weighingMoistureNote ? (
         <p className="text-sm text-ink-muted">
-          {GRADER_TEXT.weighingMoistureNote}: {weighingMoistureNote}
+          {text.weighingMoistureNote}: {weighingMoistureNote}
         </p>
       ) : null}
     </div>

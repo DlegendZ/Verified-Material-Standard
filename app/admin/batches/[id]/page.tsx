@@ -1,3 +1,12 @@
+import { getLocale } from "@/lib/locale-server";
+import {
+  declarationsEn,
+  gatesEn,
+  samplePointsEn,
+} from "@/lib/assessment-english";
+import { categoryName, profileName, woodGradesEn } from "@/lib/public-english";
+import { claimedSpecSummary } from "@/lib/claims";
+import { BatchDocuments } from "@/components/batch-documents";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
 import { GradeMeaningTable } from "@/components/grade-meaning-table";
@@ -33,7 +42,6 @@ import type {
   DocumentationCheckRow,
   GateCheckRow,
   GradingResultRow,
-  ProfileRow,
   QuantityCheckRow,
   MaterialCategoryRow,
   MaterialFormProfileRow,
@@ -56,6 +64,8 @@ export default async function AdminBatchReviewPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const locale = await getLocale();
+  const en = locale === "en";
   const { id } = await params;
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
@@ -69,9 +79,27 @@ export default async function AdminBatchReviewPage({
     .maybeSingle<AdminBatch>();
 
   if (!batch) notFound();
+  const category = batch.material_categories;
+  const profile = batch.material_form_profiles;
+  const materialLabel = category
+    ? categoryName(locale, category.code, category.name)
+    : "—";
+  const formLabel = profile
+    ? profileName(locale, profile.code, profile.name)
+    : "—";
+  const claim =
+    en && batch.claimed_spec_detail && profile && batch.declared_material_type
+      ? claimedSpecSummary(
+          batch.claimed_spec_detail,
+          { name: formLabel },
+          batch.declared_material_type,
+          batch.claimed_weight_kg,
+          locale,
+        )
+      : batch.claimed_spec;
 
   const [
-    { data: graders },
+    { data: graders, error: gradersError },
     { data: gate },
     { data: grading },
     { data: quantity },
@@ -83,7 +111,8 @@ export default async function AdminBatchReviewPage({
       .from("profiles")
       .select("id, full_name")
       .eq("role", "grader")
-      .returns<ProfileRow[]>(),
+      .eq("grader_available", true)
+      .order("full_name"),
     supabase
       .from("gate_checks")
       .select("*")
@@ -129,48 +158,54 @@ export default async function AdminBatchReviewPage({
       <PageHeader
         title={batch.batch_code}
         description={`${batch.factories?.legal_name ?? "—"} · ${batch.factories?.city ?? "—"}`}
-        action={<BatchStatusBadge status={batch.status} />}
+        action={<BatchStatusBadge status={batch.status} locale={locale} />}
       />
 
       <Panel>
-        <PanelHeader title="Data pengajuan" />
+        <PanelHeader title={en ? "Submission details" : "Data pengajuan"} />
         <PanelBody>
           <dl>
             <DataRow
-              label="Kategori material"
-              value={batch.material_categories?.name ?? "—"}
+              label={en ? "Material category" : "Kategori material"}
+              value={materialLabel}
             />
             <DataRow
-              label={CLAIM_TEXT.formProfile}
-              value={batch.material_form_profiles?.name ?? "—"}
+              label={en ? "Material form" : CLAIM_TEXT.formProfile}
+              value={formLabel}
             />
             <DataRow
-              label={CLAIM_TEXT.declaredMaterialType}
+              label={
+                en ? "Declared wood species" : CLAIM_TEXT.declaredMaterialType
+              }
               value={batch.declared_material_type ?? "—"}
             />
             <DataRow
-              label="Klaim berat"
-              value={formatWeight(batch.claimed_weight_kg)}
+              label={en ? "Declared weight" : "Klaim berat"}
+              value={formatWeight(batch.claimed_weight_kg, locale)}
               mono
             />
             <DataRow
-              label="Klaim spesifikasi"
-              value={batch.claimed_spec ?? "—"}
-            />
-            <DataRow label="Nomor lot" value={batch.lot_number ?? "—"} mono />
-            <DataRow
-              label="Tanggal produksi"
-              value={formatDate(batch.production_date)}
+              label={en ? "Declared specifications" : "Klaim spesifikasi"}
+              value={claim ?? "—"}
             />
             <DataRow
-              label="Kontak di lokasi"
+              label={en ? "Lot number" : "Nomor lot"}
+              value={batch.lot_number ?? "—"}
+              mono
+            />
+            <DataRow
+              label={en ? "Production date" : "Tanggal produksi"}
+              value={formatDate(batch.production_date, locale)}
+            />
+            <DataRow
+              label={en ? "On-site contact" : "Kontak di lokasi"}
               value={batch.factories?.contact_person ?? "—"}
             />
           </dl>
           {batch.intake_declarations ? (
             <div className="mt-4 space-y-2">
               <h3 className="text-sm font-semibold text-ink">
-                {BATCH_FORM_TEXT.declarations}
+                {en ? "Batch declarations" : BATCH_FORM_TEXT.declarations}
               </h3>
               {(
                 [
@@ -181,7 +216,7 @@ export default async function AdminBatchReviewPage({
               ).map((key) => (
                 <p key={key} className="text-sm text-ink-muted">
                   {batch.intake_declarations?.[key] ? "✓" : "—"}{" "}
-                  {REVISION_TEXT.declarations[key]}
+                  {(en ? declarationsEn : REVISION_TEXT.declarations)[key]}
                 </p>
               ))}
             </div>
@@ -190,28 +225,35 @@ export default async function AdminBatchReviewPage({
       </Panel>
 
       <SamplingGuide
-        categoryName={batch.material_categories?.name ?? "—"}
+        locale={locale}
+        categoryName={materialLabel}
         profile={batch.material_form_profiles}
-        claimedSpec={batch.claimed_spec}
+        claimedSpec={claim}
         thresholdDisclaimer={
           batch.material_categories?.threshold_disclaimer ?? null
         }
       />
 
+      <BatchDocuments supabase={supabase} batchId={batch.id} />
+
       {batch.status === "submitted" ? (
         <Panel>
           <PanelHeader
-            title="Tugaskan grader"
-            description="Batch pindah ke antrian grader begitu ditugaskan."
+            title={en ? "Assign a grader" : "Tugaskan grader"}
+            description={
+              en
+                ? "Once assigned, the batch appears in the grader’s queue."
+                : "Batch pindah ke antrian grader begitu ditugaskan."
+            }
           />
           <PanelBody>
-            <AssignGraderForm
-              batchId={batch.id}
-              graders={(graders ?? []).map((grader) => ({
-                id: grader.id,
-                full_name: grader.full_name,
-              }))}
-            />
+            {gradersError ? (
+              <p role="alert" className="text-sm text-danger">
+                {en ? "Could not load available graders." : "Daftar grader yang tersedia gagal dimuat."}
+              </p>
+            ) : (
+              <AssignGraderForm batchId={batch.id} graders={graders ?? []} />
+            )}
           </PanelBody>
         </Panel>
       ) : null}
@@ -219,12 +261,16 @@ export default async function AdminBatchReviewPage({
       {gate ? (
         <Panel>
           <PanelHeader
-            title="Gerbang wajib"
-            description="Ketiganya harus lolos sebelum penilaian dimulai."
+            title={en ? "Required gate checks" : "Gerbang wajib"}
+            description={
+              en
+                ? "All three checks must pass before scoring."
+                : "Ketiganya harus lolos sebelum penilaian dimulai."
+            }
           />
           <PanelBody className="space-y-3">
             <ul className="space-y-2">
-              {GATES.map((item) => {
+              {(en ? gatesEn : GATES).map((item) => {
                 const passed =
                   gate[
                     item.key === "nonB3Pass"
@@ -240,7 +286,13 @@ export default async function AdminBatchReviewPage({
                   >
                     <span className="text-sm text-ink">{item.label}</span>
                     <Badge tone={passed ? "ok" : "danger"}>
-                      {passed ? "Lolos" : "Gagal"}
+                      {passed
+                        ? en
+                          ? "Passed"
+                          : "Lolos"
+                        : en
+                          ? "Failed"
+                          : "Gagal"}
                     </Badge>
                   </li>
                 );
@@ -259,40 +311,53 @@ export default async function AdminBatchReviewPage({
         <>
           <Panel>
             <PanelHeader
-              title="Hasil penilaian"
-              description={`Versi rumus ${grading.scoring_version}`}
+              title={en ? "Assessment results" : "Hasil penilaian"}
+              description={`${en ? "Scoring version" : "Versi rumus"} ${grading.scoring_version}`}
             />
             <PanelBody className="space-y-5">
               <GradeStamp
+                locale={locale}
                 grade={grading.grade}
                 finalScore={grading.final_score}
               />
               <GradeMeaningTable
-                categoryName={batch.material_categories?.name ?? "—"}
-                meanings={batch.material_categories?.grade_meanings}
+                locale={locale}
+                categoryName={materialLabel}
+                meanings={
+                  en && category?.code === "solid_wood"
+                    ? woodGradesEn
+                    : category?.grade_meanings
+                }
                 grade={grading.grade}
               />
-              <FinalScoreBreakdown breakdown={breakdown} />
-            </PanelBody>
-          </Panel>
-
-          <Panel>
-            <PanelHeader title="Skor per titik sampel" />
-            <PanelBody className="space-y-4">
-              <SamplePointTable breakdown={breakdown} />
-              <ConsistencyNote breakdown={breakdown} />
+              <FinalScoreBreakdown locale={locale} breakdown={breakdown} />
             </PanelBody>
           </Panel>
 
           <Panel>
             <PanelHeader
-              title="Rincian sub-kriteria"
-              description="Nilai mentah yang diisi grader, termasuk yang diabaikan karena override bau."
+              title={en ? "Scores by sample point" : "Skor per titik sampel"}
+            />
+            <PanelBody className="space-y-4">
+              <SamplePointTable locale={locale} breakdown={breakdown} />
+              <ConsistencyNote locale={locale} breakdown={breakdown} />
+            </PanelBody>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title={en ? "Sub-criteria details" : "Rincian sub-kriteria"}
+              description={
+                en
+                  ? "Original entries, including any scores excluded by the odor override."
+                  : "Nilai mentah yang diisi grader, termasuk yang diabaikan karena override bau."
+              }
             />
             <PanelBody>
-              <SubCriteriaDetail breakdown={breakdown} />
+              <SubCriteriaDetail locale={locale} breakdown={breakdown} />
               <div className="mt-4">
                 <QuantityDetail
+                  locale={locale}
                   breakdown={breakdown}
                   scoringVersion={grading.scoring_version}
                   weighingMoistureNote={quantity?.weighing_moisture_note}
@@ -305,18 +370,26 @@ export default async function AdminBatchReviewPage({
 
       {quantity || documentation ? (
         <Panel>
-          <PanelHeader title="Input Langkah 6 & 7" />
+          <PanelHeader
+            title={
+              en ? "Quantity and documentation inputs" : "Input Langkah 6 & 7"
+            }
+          />
           <PanelBody>
             <dl>
               {quantity ? (
                 <>
                   <DataRow
-                    label="Berat timbang ulang"
+                    label={en ? "Measured weight" : "Berat timbang ulang"}
                     value={formatWeight(quantity.actual_weight_kg)}
                     mono
                   />
                   <DataRow
-                    label="Sampel sesuai spesifikasi"
+                    label={
+                      en
+                        ? "Samples within specification"
+                        : "Sampel sesuai spesifikasi"
+                    }
                     value={formatPercent(quantity.spec_match_pct)}
                     mono
                   />
@@ -325,21 +398,33 @@ export default async function AdminBatchReviewPage({
               {documentation ? (
                 <>
                   <DataRow
-                    label="Tanggal produksi tercantum"
+                    label={
+                      en
+                        ? "Production date recorded"
+                        : "Tanggal produksi tercantum"
+                    }
                     value={documentation.has_production_date ? "Ya" : "Tidak"}
                   />
                   <DataRow
-                    label="Foto batch multi-sudut"
+                    label={
+                      en ? "Multi-angle batch photos" : "Foto batch multi-sudut"
+                    }
                     value={
                       documentation.has_multi_angle_photos ? "Ya" : "Tidak"
                     }
                   />
                   <DataRow
-                    label="Nomor lot/traceability"
+                    label={
+                      en
+                        ? "Lot / traceability number"
+                        : "Nomor lot/traceability"
+                    }
                     value={documentation.has_lot_number ? "Ya" : "Tidak"}
                   />
                   <DataRow
-                    label="Hasil uji tambahan"
+                    label={
+                      en ? "Additional test results" : "Hasil uji tambahan"
+                    }
                     value={documentation.has_lab_test ? "Ya" : "Tidak"}
                   />
                 </>
@@ -351,7 +436,7 @@ export default async function AdminBatchReviewPage({
 
       {(photos ?? []).length > 0 ? (
         <Panel>
-          <PanelHeader title="Foto" />
+          <PanelHeader title={en ? "Photos" : "Foto"} />
           <PanelBody>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {(photos ?? []).map((photo) => (
@@ -361,15 +446,23 @@ export default async function AdminBatchReviewPage({
                     src={publicObjectUrl(BUCKETS.photos, photo.file_path)}
                     alt={
                       photo.sample_point
-                        ? `Titik ${SAMPLE_POINT_LABELS[photo.sample_point]}`
-                        : "Foto batch"
+                        ? en
+                          ? samplePointsEn[photo.sample_point]
+                          : `Titik ${SAMPLE_POINT_LABELS[photo.sample_point]}`
+                        : en
+                          ? "Batch photo"
+                          : "Foto batch"
                     }
                     className="aspect-4/3 w-full object-cover"
                   />
                   <p className="border-t border-line px-2 py-1 text-xs text-ink-muted">
                     {photo.sample_point
-                      ? `Titik ${SAMPLE_POINT_LABELS[photo.sample_point]}`
-                      : "Foto batch"}
+                      ? en
+                        ? samplePointsEn[photo.sample_point]
+                        : `Titik ${SAMPLE_POINT_LABELS[photo.sample_point]}`
+                      : en
+                        ? "Batch photo"
+                        : "Foto batch"}
                   </p>
                 </li>
               ))}
@@ -381,8 +474,12 @@ export default async function AdminBatchReviewPage({
       {batch.status === "computed" && grading ? (
         <Panel>
           <PanelHeader
-            title="Penerbitan"
-            description="Sertifikat diterbitkan Admin, bukan grader — kontrol berlapis (keputusan D1)."
+            title={en ? "Issue a certificate" : "Penerbitan"}
+            description={
+              en
+                ? "An administrator reviews the assessment and issues the certificate."
+                : "Sertifikat diterbitkan Admin, bukan grader — kontrol berlapis (keputusan D1)."
+            }
           />
           <PanelBody>
             <IssueButtons batchId={batch.id} grade={grading.grade} />
@@ -392,21 +489,23 @@ export default async function AdminBatchReviewPage({
 
       {certificate ? (
         <Panel>
-          <PanelHeader title="Sertifikat terbit" />
+          <PanelHeader
+            title={en ? "Issued certificate" : "Sertifikat terbit"}
+          />
           <PanelBody>
             <dl>
               <DataRow
-                label="Nomor sertifikat"
+                label={en ? "Certificate number" : "Nomor sertifikat"}
                 value={certificate.certificate_code}
                 mono
               />
               <DataRow
-                label="Terbit"
-                value={formatDate(certificate.issued_at)}
+                label={en ? "Issued" : "Terbit"}
+                value={formatDate(certificate.issued_at, locale)}
               />
               <DataRow
-                label="Berlaku sampai"
-                value={formatDate(certificate.valid_until)}
+                label={en ? "Valid until" : "Berlaku sampai"}
+                value={formatDate(certificate.valid_until, locale)}
               />
               <DataRow label="Status" value={certificate.status} />
             </dl>

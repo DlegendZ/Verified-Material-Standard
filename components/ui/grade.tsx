@@ -2,6 +2,8 @@ import { cn } from "@/lib/cn";
 import { formatScore } from "@/lib/format";
 import { GRADE_MEANING } from "@/lib/text";
 import type { GradeDb } from "@/lib/types/db";
+import type { Locale } from "@/lib/locale";
+import { gradeNamesEn } from "@/lib/public-english";
 
 const GRADE_BG: Record<GradeDb, string> = {
   A: "bg-grade-a",
@@ -25,10 +27,12 @@ export function GradeStamp({
   grade,
   finalScore,
   className,
+  locale = "id",
 }: {
   grade: GradeDb;
   finalScore: number;
   className?: string;
+  locale?: Locale;
 }) {
   return (
     <div className={cn("flex items-stretch border border-line", className)}>
@@ -38,12 +42,18 @@ export function GradeStamp({
           GRADE_BG[grade],
         )}
       >
-        <span className="font-mono text-6xl font-semibold leading-none sm:text-7xl">{grade}</span>
+        <span className="font-mono text-6xl font-semibold leading-none sm:text-7xl">
+          {grade}
+        </span>
       </div>
       <div className="flex flex-col justify-center gap-1 bg-surface px-4 py-4 sm:px-5">
-        <p className="text-lg font-semibold text-ink sm:text-xl">{GRADE_MEANING[grade]}</p>
+        <p className="text-lg font-semibold text-ink sm:text-xl">
+          {(locale === "en" ? gradeNamesEn : GRADE_MEANING)[grade]}
+        </p>
         <p className="font-mono tabular text-sm text-ink-muted">
-          Skor akhir {formatScore(finalScore)} dari 100
+          {locale === "en"
+            ? `Final score ${formatScore(finalScore, locale)} out of 100`
+            : `Skor akhir ${formatScore(finalScore)} dari 100`}
         </p>
       </div>
     </div>
@@ -51,7 +61,13 @@ export function GradeStamp({
 }
 
 /** Versi ringkas untuk baris tabel & kartu daftar. */
-export function GradeChip({ grade, className }: { grade: GradeDb; className?: string }) {
+export function GradeChip({
+  grade,
+  className,
+}: {
+  grade: GradeDb;
+  className?: string;
+}) {
   return (
     <span
       className={cn(

@@ -1,3 +1,5 @@
+import { categoryName } from "@/lib/public-english";
+import { getLocale } from "@/lib/locale-server";
 import Link from "next/link";
 import { MapPin, Package } from "lucide-react";
 import { PageHeader } from "@/components/app-shell";
@@ -20,19 +22,21 @@ interface AssignmentCard {
     batch_code: string;
     claimed_weight_kg: number;
     status: BatchStatus;
-    material_categories: { name: string } | null;
+    material_categories: { code: string; name: string } | null;
     factories: { legal_name: string; city: string; address: string } | null;
   } | null;
 }
 
 export default async function GraderQueuePage() {
+  const locale = await getLocale();
+  const en = locale === "en";
   const user = await requireRole("grader");
   const supabase = await createSupabaseServerClient();
 
   const { data: assignments } = await supabase
     .from("assignments")
     .select(
-      "id, assigned_at, status, batches(id, batch_code, claimed_weight_kg, status, material_categories(name), factories(legal_name, city, address))",
+      "id, assigned_at, status, batches(id, batch_code, claimed_weight_kg, status, material_categories(code, name), factories(legal_name, city, address))",
     )
     .eq("grader_id", user.id)
     .order("assigned_at", { ascending: true })
@@ -47,12 +51,18 @@ export default async function GraderQueuePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Antrian penugasan"
-        description="Buka batch saat kamu sudah di lokasi. Isian tersimpan otomatis di perangkat ini."
+        title={en ? "Assignment queue" : "Antrian penugasan"}
+        description={
+          en
+            ? "Open the batch when you arrive. Your entries are saved automatically on this device."
+            : "Buka batch saat kamu sudah di lokasi. Isian tersimpan otomatis di perangkat ini."
+        }
       />
 
       {open.length === 0 ? (
-        <EmptyState title={EMPTY_STATES.noAssignments} />
+        <EmptyState
+          title={en ? "No assignments" : EMPTY_STATES.noAssignments}
+        />
       ) : (
         <ul className="space-y-3">
           {open.map((assignment) => {
@@ -68,7 +78,7 @@ export default async function GraderQueuePage() {
                       <p className="font-mono text-sm font-medium text-ink">
                         {batch.batch_code}
                       </p>
-                      <BatchStatusBadge status={batch.status} />
+                      <BatchStatusBadge status={batch.status} locale={locale} />
                     </div>
 
                     <p className="mt-2 text-base font-medium text-ink">
@@ -89,14 +99,22 @@ export default async function GraderQueuePage() {
                       <p className="flex items-center gap-2">
                         <Package className="size-4 shrink-0" aria-hidden />
                         <span>
-                          {batch.material_categories?.name ?? "—"} ·{" "}
-                          {formatWeight(batch.claimed_weight_kg)} klaim
+                          {batch.material_categories
+                            ? categoryName(
+                                locale,
+                                batch.material_categories.code,
+                                batch.material_categories.name,
+                              )
+                            : "—"}{" "}
+                          · {formatWeight(batch.claimed_weight_kg, locale)}{" "}
+                          {en ? "declared" : "klaim"}
                         </span>
                       </p>
                     </div>
 
                     <p className="mt-3 text-xs text-ink-muted">
-                      Ditugaskan {formatDate(assignment.assigned_at)}
+                      {en ? "Assigned" : "Ditugaskan"}{" "}
+                      {formatDate(assignment.assigned_at, locale)}
                     </p>
                   </Link>
                 </Panel>

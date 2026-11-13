@@ -21,6 +21,7 @@ const DEFAULT_FILES = [
   "supabase/migrations/0002_rls.sql",
   "supabase/migrations/0003_grading_results_delete.sql",
   "supabase/migrations/0004_kayu_solid_pilot.sql",
+  "supabase/migrations/0005_demo_workflows.sql",
   "supabase/seed.sql",
 ];
 

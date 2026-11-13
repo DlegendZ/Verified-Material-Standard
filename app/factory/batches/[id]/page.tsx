@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/app-shell";
 import { CopyButton } from "@/components/copy-button";
+import { BatchDocuments } from "@/components/batch-documents";
+import { categoryName, profileName, woodGradesEn } from "@/lib/public-english";
+import { claimedSpecSummary } from "@/lib/claims";
+import { getLocale } from "@/lib/locale-server";
+import { DeleteDraftButton } from "./delete-draft-button";
 import { FileUploader } from "@/components/file-uploader";
 import { BatchStatusBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
@@ -28,7 +33,6 @@ import {
   VERIFY_PAGE,
 } from "@/lib/text";
 import type {
-  BatchDocumentRow,
   BatchPhotoRow,
   BatchRow,
   CertificateRow,
@@ -64,38 +68,49 @@ export default async function FactoryBatchDetailPage({
 
   if (!batch || batch.factories?.owner_id !== user.id) notFound();
 
-  const [
-    { data: photos },
-    { data: documents },
-    { data: grading },
-    { data: certificate },
-  ] = await Promise.all([
-    supabase
-      .from("batch_photos")
-      .select("*")
-      .eq("batch_id", id)
-      .returns<BatchPhotoRow[]>(),
-    supabase
-      .from("batch_documents")
-      .select("*")
-      .eq("batch_id", id)
-      .returns<BatchDocumentRow[]>(),
-    supabase
-      .from("grading_results")
-      .select("*")
-      .eq("batch_id", id)
-      .order("computed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<GradingResultRow>(),
-    supabase
-      .from("certificates")
-      .select("*")
-      .eq("batch_id", id)
-      .order("issued_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<CertificateRow>(),
-  ]);
+  const [{ data: photos }, { data: grading }, { data: certificate }] =
+    await Promise.all([
+      supabase
+        .from("batch_photos")
+        .select("*")
+        .eq("batch_id", id)
+        .returns<BatchPhotoRow[]>(),
+      supabase
+        .from("grading_results")
+        .select("*")
+        .eq("batch_id", id)
+        .order("computed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<GradingResultRow>(),
+      supabase
+        .from("certificates")
+        .select("*")
+        .eq("batch_id", id)
+        .order("issued_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<CertificateRow>(),
+    ]);
 
+  const locale = await getLocale();
+  const en = locale === "en";
+  const category = batch.material_categories;
+  const profile = batch.material_form_profiles;
+  const materialLabel = category
+    ? categoryName(locale, category.code, category.name)
+    : "—";
+  const formLabel = profile
+    ? profileName(locale, profile.code, profile.name)
+    : "—";
+  const claim =
+    en && batch.claimed_spec_detail && profile && batch.declared_material_type
+      ? claimedSpecSummary(
+          batch.claimed_spec_detail,
+          { name: formLabel },
+          batch.declared_material_type,
+          batch.claimed_weight_kg,
+          locale,
+        )
+      : batch.claimed_spec;
   const isDraft = batch.status === "draft";
   const generalPhotos = (photos ?? []).filter(
     (photo) => photo.sample_point === null,
@@ -114,19 +129,35 @@ export default async function FactoryBatchDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={batch.batch_code}
-        description={BATCH_STATUS_HINT[batch.status]}
-        action={<BatchStatusBadge status={batch.status} />}
+        description={
+          en
+            ? isDraft
+              ? "Upload supporting files, then submit the draft to VMS."
+              : undefined
+            : BATCH_STATUS_HINT[batch.status]
+        }
+        action={<BatchStatusBadge status={batch.status} locale={locale} />}
       />
 
       {certificate && grading ? (
         <Panel>
           <PanelHeader
-            title="Sertifikat"
-            description="Tempel link atau QR ini di deskripsi listing marketplace."
+            title={en ? "Certificate" : "Sertifikat"}
+            description={
+              en
+                ? "Paste this link or QR code into the marketplace listing."
+                : "Tempel link atau QR ini di deskripsi listing marketplace."
+            }
             action={
               certificateStatus ? (
                 <Badge tone={certificateStatus === "valid" ? "ok" : "danger"}>
-                  {EFFECTIVE_CERTIFICATE_LABELS[certificateStatus]}
+                  {en
+                    ? {
+                        valid: "VALID",
+                        expired: "EXPIRED",
+                        revoked: "NOT VALID",
+                      }[certificateStatus]
+                    : EFFECTIVE_CERTIFICATE_LABELS[certificateStatus]}
                 </Badge>
               ) : null
             }
@@ -135,6 +166,7 @@ export default async function FactoryBatchDetailPage({
             <GradeStamp
               grade={grading.grade}
               finalScore={grading.final_score}
+              locale={locale}
             />
             {certificateStatus !== "valid" ? (
               <p
@@ -153,22 +185,24 @@ export default async function FactoryBatchDetailPage({
               href="/proses-keberatan"
               className="block text-sm font-medium text-brand underline"
             >
-              {REVISION_TEXT.objectionLink}
+              {en
+                ? "Disagree with the grade? See the appeals process."
+                : REVISION_TEXT.objectionLink}
             </Link>
 
             <dl>
               <DataRow
-                label="Nomor sertifikat"
+                label={en ? "Certificate number" : "Nomor sertifikat"}
                 value={certificate.certificate_code}
                 mono
               />
               <DataRow
-                label="Terbit"
-                value={formatDate(certificate.issued_at)}
+                label={en ? "Issued" : "Terbit"}
+                value={formatDate(certificate.issued_at, locale)}
               />
               <DataRow
-                label="Berlaku sampai"
-                value={formatDate(certificate.valid_until)}
+                label={en ? "Valid until" : "Berlaku sampai"}
+                value={formatDate(certificate.valid_until, locale)}
               />
             </dl>
 
@@ -211,13 +245,13 @@ export default async function FactoryBatchDetailPage({
               ) : null}
               <CopyButton
                 value={verificationUrl(certificate.certificate_code)}
-                label="Salin link"
+                label={en ? "Copy link" : "Salin link"}
               />
             </div>
 
             <div>
               <p className="mb-2 text-sm font-medium text-ink">
-                Teks siap-tempel
+                {en ? "Listing text" : "Teks siap-tempel"}
               </p>
               <pre className="max-h-56 overflow-auto whitespace-pre-wrap border border-line bg-surface-sunken p-3 text-sm text-ink">
                 {listingSnippet({
@@ -232,7 +266,7 @@ export default async function FactoryBatchDetailPage({
               <div className="mt-2">
                 <CopyButton
                   variant="primary"
-                  label="Salin teks siap-tempel"
+                  label={en ? "Copy listing text" : "Salin teks siap-tempel"}
                   value={listingSnippet({
                     grade: grading.grade,
                     finalScore: grading.final_score,
@@ -252,8 +286,13 @@ export default async function FactoryBatchDetailPage({
         <Panel>
           <PanelBody>
             <GradeMeaningTable
-              categoryName={batch.material_categories.name}
-              meanings={batch.material_categories.grade_meanings}
+              categoryName={materialLabel}
+              locale={locale}
+              meanings={
+                en && category?.code === "solid_wood"
+                  ? woodGradesEn
+                  : batch.material_categories.grade_meanings
+              }
               grade={grading.grade}
             />
           </PanelBody>
@@ -263,13 +302,18 @@ export default async function FactoryBatchDetailPage({
       {batch.status === "not_certified" && grading ? (
         <Panel className="border-danger">
           <PanelHeader
-            title="Tidak lolos sertifikasi"
-            description="Skor akhir di bawah 55. Sertifikat tidak diterbitkan."
+            title={en ? "Not certified" : "Tidak lolos sertifikasi"}
+            description={
+              en
+                ? "The score was below 55. No certificate was issued."
+                : "Skor akhir di bawah 55. Sertifikat tidak diterbitkan."
+            }
           />
           <PanelBody>
             <GradeStamp
               grade={grading.grade}
               finalScore={grading.final_score}
+              locale={locale}
             />
             <p className="mt-4 text-sm text-ink-muted">
               Saran: sortir ulang batch untuk memisahkan bagian yang menurunkan
@@ -282,8 +326,12 @@ export default async function FactoryBatchDetailPage({
       {batch.status === "rejected_gate" ? (
         <Panel className="border-danger">
           <PanelHeader
-            title="Ditolak di gerbang wajib"
-            description="Proses berhenti sebelum penilaian. Tidak ada skor dan tidak ada sertifikat."
+            title={en ? "Rejected at the gate" : "Ditolak di gerbang wajib"}
+            description={
+              en
+                ? "The assessment stopped. No score or certificate was issued."
+                : "Proses berhenti sebelum penilaian. Tidak ada skor dan tidak ada sertifikat."
+            }
           />
           <PanelBody>
             <p className="text-sm text-ink-muted">
@@ -295,36 +343,45 @@ export default async function FactoryBatchDetailPage({
       ) : null}
 
       <Panel>
-        <PanelHeader title={BATCH_FORM_TEXT.dataTitle} />
+        <PanelHeader title={en ? "Batch details" : BATCH_FORM_TEXT.dataTitle} />
         <PanelBody>
           <dl>
             <DataRow
-              label="Kategori material"
-              value={batch.material_categories?.name ?? "—"}
+              label={en ? "Material category" : "Kategori material"}
+              value={materialLabel}
             />
             <DataRow
-              label={CLAIM_TEXT.formProfile}
-              value={batch.material_form_profiles?.name ?? "—"}
+              label={en ? "Material form" : CLAIM_TEXT.formProfile}
+              value={formLabel}
             />
             <DataRow
-              label={CLAIM_TEXT.declaredMaterialType}
+              label={
+                en ? "Declared wood species" : CLAIM_TEXT.declaredMaterialType
+              }
               value={batch.declared_material_type ?? "—"}
             />
             <DataRow
-              label="Klaim berat"
-              value={formatWeight(batch.claimed_weight_kg)}
+              label={en ? "Declared weight" : "Klaim berat"}
+              value={formatWeight(batch.claimed_weight_kg, locale)}
               mono
             />
             <DataRow
-              label="Klaim spesifikasi"
-              value={batch.claimed_spec ?? "—"}
+              label={en ? "Declared specifications" : "Klaim spesifikasi"}
+              value={claim ?? "—"}
             />
             <DataRow
-              label="Tanggal produksi"
-              value={formatDate(batch.production_date)}
+              label={en ? "Production date" : "Tanggal produksi"}
+              value={formatDate(batch.production_date, locale)}
             />
-            <DataRow label="Nomor lot" value={batch.lot_number ?? "—"} mono />
-            <DataRow label="Dibuat" value={formatDate(batch.created_at)} />
+            <DataRow
+              label={en ? "Lot number" : "Nomor lot"}
+              value={batch.lot_number ?? "—"}
+              mono
+            />
+            <DataRow
+              label={en ? "Created" : "Dibuat"}
+              value={formatDate(batch.created_at, locale)}
+            />
           </dl>
           {batch.intake_declarations ? (
             <div className="mt-4 space-y-2">
@@ -350,12 +407,18 @@ export default async function FactoryBatchDetailPage({
 
       <Panel>
         <PanelHeader
-          title="Foto batch"
-          description="Foto multi-sudut menambah 25 poin pada kelengkapan dokumentasi."
+          title={en ? "Batch photos" : "Foto batch"}
+          description={
+            en
+              ? "Multi-angle photos add 25 documentation points."
+              : "Foto multi-sudut menambah 25 poin pada kelengkapan dokumentasi."
+          }
         />
         <PanelBody className="space-y-4">
           {generalPhotos.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada foto.</p>
+            <p className="text-sm text-ink-muted">
+              {en ? "No photos yet." : "Belum ada foto."}
+            </p>
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {generalPhotos.map((photo) => (
@@ -377,80 +440,68 @@ export default async function FactoryBatchDetailPage({
             <FileUploader
               batchId={batch.id}
               bucket={BUCKETS.photos}
-              label="Unggah foto batch"
-              accept="image/*"
+              label={en ? "Upload batch photo" : "Unggah foto batch"}
               onUploaded={attachBatchFileAction.bind(null, batch.id, "photo")}
             />
           ) : null}
         </PanelBody>
       </Panel>
 
-      <Panel>
-        <PanelHeader
-          title="Dokumen"
-          description="Dokumen asal-usul wajib ada agar batch lolos gerbang wajib. Hasil uji lab menambah 25 poin dokumentasi."
-        />
-        <PanelBody className="space-y-4">
-          {(documents ?? []).length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada dokumen.</p>
-          ) : (
-            <ul className="space-y-2">
-              {(documents ?? []).map((document) => (
-                <li
-                  key={document.id}
-                  className="flex items-center justify-between gap-3 border border-line px-3 py-2 text-sm"
-                >
-                  <span className="text-ink">
-                    {document.kind === "origin_doc"
-                      ? "Dokumen asal-usul"
-                      : document.kind === "lab_test"
-                        ? "Hasil uji lab"
-                        : "Dokumen lain"}
-                  </span>
-                  <span className="text-ink-muted">
-                    {formatDate(document.uploaded_at)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {isDraft ? (
+      <BatchDocuments supabase={supabase} batchId={batch.id}>
+        {isDraft && (
+          <>
+            <p className="text-sm text-ink-muted">
+              {en ? "Upload a PDF or an image." : "Unggah PDF atau gambar."}
+            </p>
             <div className="flex flex-wrap gap-3">
-              <FileUploader
-                batchId={batch.id}
-                bucket={BUCKETS.documents}
-                label="Unggah dokumen asal-usul"
-                accept="image/*,application/pdf"
-                onUploaded={attachBatchFileAction.bind(
-                  null,
-                  batch.id,
-                  "origin_doc",
-                )}
-              />
-              <FileUploader
-                batchId={batch.id}
-                bucket={BUCKETS.documents}
-                label="Unggah hasil uji lab"
-                accept="image/*,application/pdf"
-                onUploaded={attachBatchFileAction.bind(
-                  null,
-                  batch.id,
-                  "lab_test",
-                )}
-              />
+              {(
+                [
+                  [
+                    "origin_doc",
+                    en ? "Upload proof of origin" : "Unggah dokumen asal-usul",
+                  ],
+                  [
+                    "lab_test",
+                    en ? "Upload lab test results" : "Unggah hasil uji lab",
+                  ],
+                  [
+                    "other",
+                    en ? "Upload other document" : "Unggah dokumen lain",
+                  ],
+                ] as const
+              ).map(([kind, label]) => (
+                <FileUploader
+                  key={kind}
+                  batchId={batch.id}
+                  bucket={BUCKETS.documents}
+                  label={label}
+                  onUploaded={attachBatchFileAction.bind(null, batch.id, kind)}
+                />
+              ))}
             </div>
-          ) : null}
-        </PanelBody>
-      </Panel>
+          </>
+        )}
+      </BatchDocuments>
 
       {isDraft ? (
         <Panel>
           <PanelHeader
-            title="Ajukan batch"
-            description="Setelah diajukan, data dan berkas batch dikunci supaya penilaian tetap bisa diaudit."
+            title={en ? "Submit the batch" : "Ajukan batch"}
+            description={
+              en
+                ? "Submitting locks batch details and attachments for audit."
+                : "Setelah diajukan, data dan berkas batch dikunci supaya penilaian tetap bisa diaudit."
+            }
           />
           <PanelBody>
             <SubmitBatchButton batchId={batch.id} />
+            <div className="mt-5 border-t border-line pt-4">
+              <DeleteDraftButton
+                batchId={batch.id}
+                batchCode={batch.batch_code}
+                en={en}
+              />
+            </div>
           </PanelBody>
         </Panel>
       ) : null}

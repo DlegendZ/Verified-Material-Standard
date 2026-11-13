@@ -262,6 +262,13 @@ mengimpor `node:crypto` untuk kode sertifikat, sehingga tidak boleh diimpor form
 Alasan: pratinjau browser dan ringkasan server memakai fungsi yang sama tanpa membawa crypto
 ke bundel browser.
 
+## A38 — Alur demo dan katalog terverifikasi
+
+- Pilihan ID/EN disimpan di cookie. Halaman mengikuti pilihan itu; data sertifikat publik tetap memakai cache 60 detik tanpa sesi pengguna. Klaim tersimpan dan dokumen asli tetap dipertahankan.
+- Penghapusan draft mengunci baris batch dan memeriksa kepemilikan serta status di SQL. Penghapusan lampiran berjalan setelah penghapusan draft; kegagalan Storage ditampilkan terpisah. Penugasan grader mengecek ketersediaan dan memperbarui batch/assignment dalam satu transaksi.
+- Dokumen tetap di bucket privat. Pabrik pemilik, grader yang ditugaskan dan admin dapat membuka tautan yang berlaku 10 menit. Asal-usul, uji lab dan dokumen lain menerima PDF/gambar; foto batch tetap khusus gambar.
+- Katalog publik memakai `public_verified_catalog()`, dengan bidang publik yang dipilih dan hanya sertifikat berlaku pada pabrik terverifikasi. Sorotan Grade A berdasarkan jumlah batch aktif dan skor tertinggi. Ini bukan peringkat menyeluruh pabrik, klaim stok, rekomendasi harga atau transaksi.
+
 ---
 
 ## Blocker yang butuh DevOps (tidak dikerjakan agent, sesuai SRD Bab 12)

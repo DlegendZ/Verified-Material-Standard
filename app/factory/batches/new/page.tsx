@@ -1,3 +1,4 @@
+import { getLocale } from "@/lib/locale-server";
 import Link from "next/link";
 import { PageHeader } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import type {
 export const metadata = { title: "Ajukan batch" };
 
 export default async function NewBatchPage() {
+  const en = (await getLocale()) === "en";
   const user = await requireRole("factory");
   const supabase = await createSupabaseServerClient();
 
@@ -44,13 +46,19 @@ export default async function NewBatchPage() {
   if (!factory) {
     return (
       <div className="mx-auto max-w-2xl">
-        <PageHeader title="Ajukan batch" />
+        <PageHeader title={en ? "Submit a batch" : "Ajukan batch"} />
         <EmptyState
-          title="Profil pabrik belum diisi"
-          description="Isi profil pabrik dulu supaya grader tahu ke mana harus datang mengambil sampel."
+          title={en ? "No factory profile yet" : "Profil pabrik belum diisi"}
+          description={
+            en
+              ? "Complete your factory profile so the grader knows where to sample."
+              : "Isi profil pabrik dulu supaya grader tahu ke mana harus datang mengambil sampel."
+          }
           action={
             <Link href="/factory/profile">
-              <Button>Isi profil pabrik</Button>
+              <Button>
+                {en ? "Complete factory profile" : "Isi profil pabrik"}
+              </Button>
             </Link>
           }
         />
@@ -61,13 +69,19 @@ export default async function NewBatchPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title="Ajukan batch"
-        description="Satu pengajuan = satu batch/lot, bukan per satuan barang."
+        title={en ? "Submit a batch" : "Ajukan batch"}
+        description={
+          en
+            ? "Each submission covers one batch or lot."
+            : "Satu pengajuan = satu batch/lot, bukan per satuan barang."
+        }
       />
 
       {factory.verification_status !== "verified" ? (
         <p className="mb-5 border border-warning bg-warning-soft px-3 py-2 text-sm text-warning">
-          {ERRORS.factoryNotVerified}
+          {en
+            ? "Your factory must be verified before you can submit a batch. You can still save a draft."
+            : ERRORS.factoryNotVerified}
         </p>
       ) : null}
 

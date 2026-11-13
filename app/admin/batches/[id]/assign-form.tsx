@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
+import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { Field, Select } from "@/components/ui/field";
 import { assignGraderAction, type ActionState } from "../../actions";
@@ -19,6 +21,19 @@ export function AssignGraderForm({
     assignGraderAction,
     initialState,
   );
+  const en = useLocale() === "en";
+
+  if (!graders.length)
+    return (
+      <p className="text-sm text-ink-muted">
+        {en
+          ? "No graders are available right now. "
+          : "Belum ada grader yang tersedia. "}
+        <Link className="text-brand underline" href="/admin/graders">
+          {en ? "Manage availability" : "Atur ketersediaan"}
+        </Link>
+      </p>
+    );
 
   return (
     <form action={formAction} className="space-y-4">
@@ -29,19 +44,25 @@ export function AssignGraderForm({
           role="alert"
           className="border border-danger bg-danger-soft px-3 py-2 text-sm text-danger"
         >
-          {state.error}
+          {en
+            ? "Assignment failed. Refresh to check grader and batch availability."
+            : state.error}
         </p>
       ) : null}
 
       <Field
         label="Grader"
         htmlFor="graderId"
-        hint="Hindari menugaskan grader yang sama berulang kali ke pabrik yang sama."
+        hint={
+          en
+            ? "Only available graders are listed."
+            : "Hanya grader yang tersedia yang ditampilkan."
+        }
         required
       >
         <Select id="graderId" name="graderId" required defaultValue="">
           <option value="" disabled>
-            Pilih grader
+            {en ? "Select a grader" : "Pilih grader"}
           </option>
           {graders.map((grader) => (
             <option key={grader.id} value={grader.id}>
@@ -52,7 +73,13 @@ export function AssignGraderForm({
       </Field>
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Menugaskan…" : "Tugaskan grader"}
+        {pending
+          ? en
+            ? "Assigning…"
+            : "Menugaskan…"
+          : en
+            ? "Assign grader"
+            : "Tugaskan grader"}
       </Button>
     </form>
   );

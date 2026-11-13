@@ -1,3 +1,5 @@
+import { categoryName } from "@/lib/public-english";
+import { getLocale } from "@/lib/locale-server";
 import Link from "next/link";
 import { PageHeader } from "@/components/app-shell";
 import { FactoryStatusBadge } from "@/components/status-badges";
@@ -17,7 +19,7 @@ interface PendingBatch {
   batch_code: string;
   claimed_weight_kg: number;
   created_at: string;
-  material_categories: { name: string } | null;
+  material_categories: { code: string; name: string } | null;
   factories: { legal_name: string; city: string } | null;
 }
 
@@ -26,6 +28,8 @@ interface AwaitingIssuance extends PendingBatch {
 }
 
 export default async function AdminDashboardPage() {
+  const locale = await getLocale();
+  const en = locale === "en";
   await requireRole("admin");
   const supabase = await createSupabaseServerClient();
 
@@ -40,7 +44,7 @@ export default async function AdminDashboardPage() {
       supabase
         .from("batches")
         .select(
-          "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city)",
+          "id, batch_code, claimed_weight_kg, created_at, material_categories(code, name), factories(legal_name, city)",
         )
         .eq("status", "submitted")
         .order("created_at", { ascending: true })
@@ -48,7 +52,7 @@ export default async function AdminDashboardPage() {
       supabase
         .from("batches")
         .select(
-          "id, batch_code, claimed_weight_kg, created_at, material_categories(name), factories(legal_name, city), grading_results(grade, final_score)",
+          "id, batch_code, claimed_weight_kg, created_at, material_categories(code, name), factories(legal_name, city), grading_results(grade, final_score)",
         )
         .eq("status", "computed")
         .order("updated_at", { ascending: true })
@@ -58,24 +62,38 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard admin"
-        description="Tiga antrian kerja: verifikasi pabrik, penugasan grader, dan penerbitan sertifikat."
+        title={en ? "Admin dashboard" : "Dashboard admin"}
+        description={
+          en
+            ? "Three queues: verify factories, assign graders, and issue certificates."
+            : "Tiga antrian kerja: verifikasi pabrik, penugasan grader, dan penerbitan sertifikat."
+        }
       />
 
       <Panel>
         <PanelHeader
-          title="Pabrik menunggu verifikasi"
+          title={
+            en
+              ? "Factories awaiting verification"
+              : "Pabrik menunggu verifikasi"
+          }
           action={
             <Link href="/admin/factories">
               <Button variant="outline" size="sm">
-                Lihat semua pabrik
+                {en ? "View all factories" : "Lihat semua pabrik"}
               </Button>
             </Link>
           }
         />
         {(pendingFactories ?? []).length === 0 ? (
           <PanelBody>
-            <EmptyState title={EMPTY_STATES.noPendingFactories} />
+            <EmptyState
+              title={
+                en
+                  ? "No factories awaiting verification"
+                  : EMPTY_STATES.noPendingFactories
+              }
+            />
           </PanelBody>
         ) : (
           <ul className="divide-y divide-line">
@@ -89,14 +107,17 @@ export default async function AdminDashboardPage() {
                     {factory.legal_name}
                   </p>
                   <p className="text-sm text-ink-muted">
-                    {factory.city} · didaftarkan{" "}
-                    {formatDate(factory.created_at)}
+                    {factory.city} · {en ? "registered" : "didaftarkan"}{" "}
+                    {formatDate(factory.created_at, locale)}
                   </p>
                 </div>
-                <FactoryStatusBadge status={factory.verification_status} />
+                <FactoryStatusBadge
+                  status={factory.verification_status}
+                  locale={locale}
+                />
                 <Link href="/admin/factories">
                   <Button size="sm" variant="outline">
-                    Tinjau
+                    {en ? "Review" : "Tinjau"}
                   </Button>
                 </Link>
               </li>
@@ -106,10 +127,22 @@ export default async function AdminDashboardPage() {
       </Panel>
 
       <Panel>
-        <PanelHeader title="Batch menunggu penugasan grader" />
+        <PanelHeader
+          title={
+            en
+              ? "Batches awaiting assignment"
+              : "Batch menunggu penugasan grader"
+          }
+        />
         {(unassigned ?? []).length === 0 ? (
           <PanelBody>
-            <EmptyState title={EMPTY_STATES.noPendingBatches} />
+            <EmptyState
+              title={
+                en
+                  ? "No batches awaiting assignment"
+                  : EMPTY_STATES.noPendingBatches
+              }
+            />
           </PanelBody>
         ) : (
           <ul className="divide-y divide-line">
@@ -125,12 +158,18 @@ export default async function AdminDashboardPage() {
                     </p>
                     <p className="text-sm text-ink-muted">
                       {batch.factories?.legal_name ?? "—"} ·{" "}
-                      {batch.material_categories?.name ?? "—"} ·{" "}
-                      {formatWeight(batch.claimed_weight_kg)}
+                      {batch.material_categories
+                        ? categoryName(
+                            locale,
+                            batch.material_categories.code,
+                            batch.material_categories.name,
+                          )
+                        : "—"}{" "}
+                      · {formatWeight(batch.claimed_weight_kg, locale)}
                     </p>
                   </div>
                   <span className="text-sm text-ink-muted">
-                    {formatDate(batch.created_at)}
+                    {formatDate(batch.created_at, locale)}
                   </span>
                 </Link>
               </li>
@@ -141,12 +180,26 @@ export default async function AdminDashboardPage() {
 
       <Panel>
         <PanelHeader
-          title="Hasil penilaian menunggu penerbitan"
-          description="Grader sudah selesai menilai. Tinjau sebelum menerbitkan sertifikat."
+          title={
+            en
+              ? "Assessments awaiting certificate issue"
+              : "Hasil penilaian menunggu penerbitan"
+          }
+          description={
+            en
+              ? "The grader has completed the assessment. Review it before issuing a certificate."
+              : "Grader sudah selesai menilai. Tinjau sebelum menerbitkan sertifikat."
+          }
         />
         {(awaiting ?? []).length === 0 ? (
           <PanelBody>
-            <EmptyState title={EMPTY_STATES.noPendingIssuance} />
+            <EmptyState
+              title={
+                en
+                  ? "No assessments awaiting issue"
+                  : EMPTY_STATES.noPendingIssuance
+              }
+            />
           </PanelBody>
         ) : (
           <ul className="divide-y divide-line">
@@ -165,7 +218,13 @@ export default async function AdminDashboardPage() {
                       </p>
                       <p className="text-sm text-ink-muted">
                         {batch.factories?.legal_name ?? "—"} ·{" "}
-                        {batch.material_categories?.name ?? "—"}
+                        {batch.material_categories
+                          ? categoryName(
+                              locale,
+                              batch.material_categories.code,
+                              batch.material_categories.name,
+                            )
+                          : "—"}
                       </p>
                     </div>
                     {grading ? (

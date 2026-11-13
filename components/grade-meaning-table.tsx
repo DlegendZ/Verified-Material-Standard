@@ -1,20 +1,27 @@
 import { GRADE_MEANING, GRADE_TABLE_TEXT, REVISION_TEXT } from "@/lib/text";
 import type { GradeDb } from "@/lib/types/db";
+import type { Locale } from "@/lib/locale";
+import { gradeNamesEn, gradeNoteEn } from "@/lib/public-english";
 
 export function GradeMeaningTable({
   categoryName,
   meanings,
   grade,
+  locale = "id",
 }: {
   categoryName: string;
   meanings: Record<GradeDb, string> | null | undefined;
   grade?: GradeDb;
+  locale?: Locale;
 }) {
+  const en = locale === "en";
   if (!meanings) return null;
   return (
     <div className="min-w-0 space-y-3">
       <h3 className="text-base font-semibold text-ink">
-        {REVISION_TEXT.gradeMeaningTitle(categoryName)}
+        {en
+          ? `What the grade means for ${categoryName}`
+          : REVISION_TEXT.gradeMeaningTitle(categoryName)}
       </h3>
       <div className="overflow-hidden rounded-xl border border-line">
         <table className="w-full text-left text-sm">
@@ -24,7 +31,7 @@ export function GradeMeaningTable({
                 {GRADE_TABLE_TEXT.grade}
               </th>
               <th scope="col" className="p-3">
-                {GRADE_TABLE_TEXT.meaning}
+                {en ? "Practical meaning" : GRADE_TABLE_TEXT.meaning}
               </th>
             </tr>
           </thead>
@@ -40,11 +47,11 @@ export function GradeMeaningTable({
                 >
                   {g}
                   <span className="mt-1 block text-xs font-normal">
-                    {GRADE_MEANING[g]}
+                    {(en ? gradeNamesEn : GRADE_MEANING)[g]}
                   </span>
                   {grade === g ? (
                     <span className="mt-2 block text-xs font-semibold text-brand">
-                      {REVISION_TEXT.currentGrade}
+                      {en ? "This batch" : REVISION_TEXT.currentGrade}
                     </span>
                   ) : null}
                 </th>
@@ -57,7 +64,7 @@ export function GradeMeaningTable({
         </table>
       </div>
       <p className="text-xs leading-relaxed text-ink-muted">
-        {REVISION_TEXT.gradeMeaningNote}
+        {en ? gradeNoteEn : REVISION_TEXT.gradeMeaningNote}
       </p>
     </div>
   );
